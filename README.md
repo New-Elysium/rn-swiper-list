@@ -35,6 +35,7 @@ yarn add react-native-reanimated react-native-gesture-handler react-native-workl
 - [x] Optimized UI thread animations for smooth performance
 - [x] Race condition prevention in callback execution
 - [x] Improved Android performance with proper thread handling
+- [x] Card virtualization for large datasets
 
 ## Important Notes ⚠️
 
@@ -45,6 +46,16 @@ All swipe callbacks (`onSwipeLeft`, `onSwipeRight`, `onSwipeTop`, `onSwipeBottom
 ### Index Parameter
 
 The `cardIndex` parameter passed to swipe callbacks represents the card's position in the **original data array**, not its position relative to any `initialIndex`. This ensures consistent indexing regardless of where you start in the card stack.
+
+### Card Virtualization
+
+For large datasets (100+ cards), enable `virtualizeCards={true}` to improve performance. This limits the number of mounted card components by dynamically rendering only the cards near the active index. When enabled:
+- Only cards within the render range are mounted (active card ± buffer)
+- Keeps a buffer of 3 cards behind the active card for `swipeBack()` functionality
+- Cards outside the range are unmounted to reduce memory usage
+- The render range updates automatically as users swipe through cards
+
+**Note**: With virtualization enabled, `swipeBack()` is limited to the last 3 swiped cards.
 
 # Props ✏️
 
@@ -64,6 +75,7 @@ The `cardIndex` parameter passed to swipe callbacks represents the card's positi
 | children                   | React.ReactNode          | Child components to be displayed inside the component. Used typically for composition.                                                                                             |          |                                |
 | FlippedContent             | func(item, index)        | Function that renders the content for the back of the card.                                                                                                                        | No       |                                |
 | loop                       | bool                     | If true, the swiper will loop back to the first card after the last card is swiped.                                                                                                | No       | false                          |
+| virtualizeCards            | bool                     | If true, enables card virtualization for improved performance with large datasets. Only cards near the active index are mounted. See "Card Virtualization" section above.          | No       | false                          |
 
 ## Event callbacks
 

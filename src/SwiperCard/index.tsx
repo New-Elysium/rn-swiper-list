@@ -392,7 +392,9 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
       shouldRender && indexDiff < prerenderItems ? 1 : 0,
       { reduceMotion: ReduceMotion.Never }
     );
-    const scale = withTiming(1 - 0.07 * indexDiff, {
+    // Clamp indexDiff to minimum 0 to prevent scale > 1 for swiped cards
+    const clampedIndexDiff = Math.max(0, indexDiff);
+    const scale = withTiming(1 - 0.07 * clampedIndexDiff, {
       reduceMotion: ReduceMotion.Never,
     });
 

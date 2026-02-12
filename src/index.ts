@@ -28,6 +28,8 @@ export type SwiperOptions<T> = {
   loop?: boolean;
   keyExtractor?: (item: T, index: number) => string | number;
   initialIndex?: number;
+  //* Virtualization for large datasets
+  virtualizeCards?: boolean;
   //* Event callbacks
   onSwipeLeft?: (cardIndex: number) => void;
   onSwipeRight?: (cardIndex: number) => void;

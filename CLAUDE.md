@@ -65,6 +65,13 @@ ref.current?.flipCard()
 - Cards outside prerender range have `opacity: 0` via animated styles
 - This prevents mounting all cards at once while keeping transitions smooth
 
+**Virtualization (virtualizeCards prop)**
+- When `virtualizeCards={true}`, only cards within a dynamic render range are actually mounted
+- Render range: `[activeIndex - SWIPE_BACK_BUFFER, activeIndex + prerenderItems + 1]`
+- `SWIPE_BACK_BUFFER = 3` allows swipeBack for the last 3 swiped cards
+- Range updates via `useAnimatedReaction` + `scheduleOnRN(setRenderRange)`
+- Recommended for large datasets (100+ cards) to reduce memory usage
+
 **Z-Index Management**
 - Cards are rendered in reverse order (`.reverse()`) so first data items appear on top
 - Each card has `zIndex: -index` to maintain proper stacking
@@ -125,6 +132,7 @@ Unit tests are in `src/__tests__/`. Due to the complexity of mocking react-nativ
 - **Avoid accessing `.value` during render** - use `useDerivedValue` or `useAnimatedStyle`
 - **Use `scheduleOnRN`/`scheduleOnUI`** for cross-thread communication, never `runOnJS` directly
 - **Limit `prerenderItems`** for large datasets to reduce initial render cost
+- **Use `virtualizeCards={true}`** for large datasets (100+ cards) to reduce memory usage
 - **Memoize render functions** passed as props (`renderCard`, `FlippedContent`)
 - Card styles use `withTiming` for smooth opacity/scale transitions
 
@@ -139,3 +147,7 @@ Unit tests are in `src/__tests__/`. Due to the complexity of mocking react-nativ
 4. **Flip requires content**: `flipCard()` only works if `FlippedContent` prop is provided
 
 5. **GestureHandlerRootView**: Must wrap the app/screen - the swiper won't work without it
+
+6. **virtualizeCards limitations**: When enabled, `swipeBack()` only works for the last 3 swiped cards (cards beyond that are unmounted)
+
+7. **Scale clamping**: The `indexDiff` used for scale calculation is clamped to minimum 0 to prevent swiped cards from becoming larger than the active card

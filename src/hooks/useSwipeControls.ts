@@ -52,7 +52,8 @@ const useSwipeControls = <T>(
 
   const swipeRight = useCallback(() => {
     const currentIndex = Math.floor(activeIndex.value);
-    if (!refs[currentIndex]) {
+    // Check ref.current exists (card is mounted, relevant when virtualizeCards is enabled)
+    if (!refs[currentIndex]?.current) {
       return;
     }
     refs[currentIndex]?.current?.swipeRight();
@@ -61,7 +62,7 @@ const useSwipeControls = <T>(
 
   const swipeTop = useCallback(() => {
     const currentIndex = Math.floor(activeIndex.value);
-    if (!refs[currentIndex]) {
+    if (!refs[currentIndex]?.current) {
       return;
     }
     refs[currentIndex]?.current?.swipeTop();
@@ -70,7 +71,7 @@ const useSwipeControls = <T>(
 
   const swipeLeft = useCallback(() => {
     const currentIndex = Math.floor(activeIndex.value);
-    if (!refs[currentIndex]) {
+    if (!refs[currentIndex]?.current) {
       return;
     }
     refs[currentIndex]?.current?.swipeLeft();
@@ -79,7 +80,7 @@ const useSwipeControls = <T>(
 
   const swipeBottom = useCallback(() => {
     const currentIndex = Math.floor(activeIndex.value);
-    if (!refs[currentIndex]) {
+    if (!refs[currentIndex]?.current) {
       return;
     }
     refs[currentIndex]?.current?.swipeBottom();
@@ -88,7 +89,7 @@ const useSwipeControls = <T>(
 
   const flipCard = useCallback(() => {
     const currentIndex = Math.floor(activeIndex.value);
-    if (!refs[currentIndex]) {
+    if (!refs[currentIndex]?.current) {
       return;
     }
     refs[currentIndex]?.current?.flipCard();
@@ -110,7 +111,9 @@ const useSwipeControls = <T>(
         ? dataLength.current - 1
         : previousIndex;
 
-    if (refs[targetIndex]) {
+    // Check both ref exists and ref.current is available (card is mounted)
+    // When virtualizeCards is enabled, ref.current may be null if card is outside render range
+    if (refs[targetIndex]?.current) {
       refs[targetIndex]?.current?.swipeBack();
       activeIndex.value = targetIndex;
     }
