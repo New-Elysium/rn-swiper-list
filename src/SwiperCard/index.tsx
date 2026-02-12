@@ -382,21 +382,18 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
 
   const rCardStyle = useAnimatedStyle(() => {
     // Handle visibility and rendering based on prerenderItems using animated values
-    // Don't access activeIndex.value directly - use derived values instead
     const currentActive = Math.floor(activeIndex.value);
     const shouldRender =
       index < currentActive + prerenderItems && index >= currentActive - 1;
     const indexDiff = index - currentActive;
 
-    const opacity = withTiming(
-      shouldRender && indexDiff < prerenderItems ? 1 : 0,
-      { reduceMotion: ReduceMotion.Never }
-    );
+    // Use raw values for opacity and scale to prevent flash on mount
+    // withTiming was causing animation from default values when cards first mount
+    const opacity = shouldRender && indexDiff < prerenderItems ? 1 : 0;
+
     // Clamp indexDiff to minimum 0 to prevent scale > 1 for swiped cards
     const clampedIndexDiff = Math.max(0, indexDiff);
-    const scale = withTiming(1 - 0.07 * clampedIndexDiff, {
-      reduceMotion: ReduceMotion.Never,
-    });
+    const scale = 1 - 0.07 * clampedIndexDiff;
 
     return {
       opacity,
@@ -404,7 +401,7 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
       zIndex: -index,
       transform: [
         { rotate: `${rotateX.value}rad` },
-        { scale: scale },
+        { scale },
         {
           translateX: translateX.value,
         },

@@ -10,6 +10,12 @@ https://github.com/Skipperlla/rn-tinder-swiper/assets/68515357/149b7418-cc2f-489
 yarn add rn-swiper-list
 ```
 
+Or install directly from GitHub:
+
+```sh
+yarn add https://github.com/New-Elysium/rn-swiper-list
+```
+
 `rn-swiper-list` needs `react-native-reanimated`, `react-native-gesture-handler`, and `react-native-worklets` packages 💎
 
 ```sh
