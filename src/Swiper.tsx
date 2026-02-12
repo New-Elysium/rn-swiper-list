@@ -1,4 +1,4 @@
-import React, { useImperativeHandle, type ForwardedRef } from 'react';
+import React, { useImperativeHandle, useState, type ForwardedRef } from 'react';
 import { useAnimatedReaction } from 'react-native-reanimated';
 import { Dimensions } from 'react-native';
 import type {
@@ -73,6 +73,7 @@ const Swiper = <T,>(
     flipDuration = 500,
     overlayLabelContainerStyle,
     initialIndex = 0,
+    virtualizeCards = false,
   }: SwiperOptions<T>,
   ref: ForwardedRef<SwiperCardRefType>
 ) => {
@@ -87,6 +88,18 @@ const Swiper = <T,>(
     prerenderItems,
     Math.max(data.length - clampedInitialIndex - 1, 1)
   );
+
+  // Buffer for swipeBack - keeps cards behind active for undo functionality
+  const SWIPE_BACK_BUFFER = 3;
+
+  // Track the range of cards to render when virtualizeCards is enabled
+  const [renderRange, setRenderRange] = useState(() => ({
+    start: clampedInitialIndex,
+    end: Math.min(
+      clampedInitialIndex + adjustedPrerenderItems + 1,
+      data.length
+    ),
+  }));
 
   const {
     activeIndex,
@@ -135,17 +148,50 @@ const Swiper = <T,>(
     []
   );
 
+  // Update render range when activeIndex changes (only used when virtualizeCards is true)
+  useAnimatedReaction(
+    () => Math.floor(activeIndex.value),
+    (currentActive) => {
+      if (!virtualizeCards) return;
+
+      // Calculate new render range with buffer for swipeBack
+      const newStart = Math.max(currentActive - SWIPE_BACK_BUFFER, 0);
+      const newEnd = Math.min(
+        currentActive + adjustedPrerenderItems + 1,
+        data.length
+      );
+
+      scheduleOnRN(() => {
+        setRenderRange((prev) => {
+          // Only update if range actually changed
+          if (prev.start !== newStart || prev.end !== newEnd) {
+            return { start: newStart, end: newEnd };
+          }
+          return prev;
+        });
+      });
+    },
+    [virtualizeCards, adjustedPrerenderItems, data.length, SWIPE_BACK_BUFFER]
+  );
+
   const Card = SwiperCard as unknown as React.ComponentType<
     React.PropsWithChildren<SwiperCardOptions<T>> & {
       ref?: React.Ref<SwiperCardRefType>;
     }
   >;
 
-  return data
-    .slice(clampedInitialIndex) // Only slice for rendering, not for processing
+  // Determine which cards to render based on virtualizeCards setting
+  const cardsToRender = virtualizeCards
+    ? data.slice(renderRange.start, renderRange.end)
+    : data.slice(clampedInitialIndex);
+
+  // Calculate the starting index for mapping
+  const startIndex = virtualizeCards ? renderRange.start : clampedInitialIndex;
+
+  return cardsToRender
     .map((item, index) => {
       // Calculate the actual index in the original data array
-      const actualIndex = index + clampedInitialIndex;
+      const actualIndex = index + startIndex;
       return (
         <Card
           key={keyExtractor ? keyExtractor(item, actualIndex) : actualIndex}
