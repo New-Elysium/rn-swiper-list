@@ -1,54 +1,51 @@
 import {
   createRef,
   useCallback,
-  useEffect,
   useMemo,
-  useRef,
   type RefObject,
 } from 'react';
 import { useSharedValue } from 'react-native-reanimated';
-import type { SwiperCardRefType } from 'rn-swiper-list';
+
+import type { SwiperCardInternalRefType } from '../internalTypes';
 
 const useSwipeControls = <T>(
   data: T[],
   loop: boolean = false,
-  initialIndex: number = 0
+  initialIndex: number = 0,
+  swipeBackStartIndex: number = initialIndex
 ) => {
   // Validate and clamp initialIndex to valid range
   const clampedInitialIndex = Math.max(
     0,
     Math.min(initialIndex, data.length - 1)
   );
+  const clampedSwipeBackStartIndex = Math.max(
+    0,
+    Math.min(swipeBackStartIndex, clampedInitialIndex)
+  );
   const activeIndex = useSharedValue(clampedInitialIndex);
-  const dataLength = useRef(data.length);
-
-  // Update data length ref when data changes
-
-  useEffect(() => {
-    dataLength.current = data.length;
-  }, [data]);
+  const dataLength = data.length;
 
   const refs = useMemo(() => {
-    let cardRefs: RefObject<SwiperCardRefType | null>[] = [];
+    let cardRefs: RefObject<SwiperCardInternalRefType | null>[] = [];
 
     for (let i = 0; i < data.length; i++) {
-      cardRefs.push(createRef<SwiperCardRefType>());
+      cardRefs.push(createRef<SwiperCardInternalRefType>());
     }
     return cardRefs;
   }, [data]);
 
   const updateActiveIndex = useCallback(() => {
-    'worklet';
-    if (loop && activeIndex.value >= dataLength.current - 1) {
+    if (loop && activeIndex.value >= dataLength - 1) {
       // Reset all cards to initial position for loop
       activeIndex.value = clampedInitialIndex;
       refs.forEach((ref) => {
-        ref?.current?.swipeBack();
+        ref?.current?.resetAfterLoop();
       });
     } else {
       activeIndex.value++;
     }
-  }, [activeIndex, loop, refs, clampedInitialIndex]);
+  }, [activeIndex, loop, refs, clampedInitialIndex, dataLength]);
 
   const swipeRight = useCallback(() => {
     const currentIndex = Math.floor(activeIndex.value);
@@ -56,7 +53,9 @@ const useSwipeControls = <T>(
     if (!refs[currentIndex]?.current) {
       return;
     }
-    refs[currentIndex]?.current?.swipeRight();
+    // Pass false to prevent the card from double-incrementing activeIndex;
+    // the controller owns the index update below.
+    refs[currentIndex]?.current?.swipeRight(false);
     updateActiveIndex();
   }, [refs, updateActiveIndex, activeIndex]);
 
@@ -65,7 +64,7 @@ const useSwipeControls = <T>(
     if (!refs[currentIndex]?.current) {
       return;
     }
-    refs[currentIndex]?.current?.swipeTop();
+    refs[currentIndex]?.current?.swipeTop(false);
     updateActiveIndex();
   }, [refs, updateActiveIndex, activeIndex]);
 
@@ -74,7 +73,7 @@ const useSwipeControls = <T>(
     if (!refs[currentIndex]?.current) {
       return;
     }
-    refs[currentIndex]?.current?.swipeLeft();
+    refs[currentIndex]?.current?.swipeLeft(false);
     updateActiveIndex();
   }, [refs, updateActiveIndex, activeIndex]);
 
@@ -83,7 +82,7 @@ const useSwipeControls = <T>(
     if (!refs[currentIndex]?.current) {
       return;
     }
-    refs[currentIndex]?.current?.swipeBottom();
+    refs[currentIndex]?.current?.swipeBottom(false);
     updateActiveIndex();
   }, [refs, updateActiveIndex, activeIndex]);
 
@@ -100,15 +99,15 @@ const useSwipeControls = <T>(
 
     if (
       !loop &&
-      (previousIndex < clampedInitialIndex || !refs[previousIndex])
+      (previousIndex < clampedSwipeBackStartIndex || !refs[previousIndex])
     ) {
       return;
     }
 
     // Handle looping for swipe back
     const targetIndex =
-      previousIndex < clampedInitialIndex
-        ? dataLength.current - 1
+      previousIndex < clampedSwipeBackStartIndex
+        ? dataLength - 1
         : previousIndex;
 
     // Check both ref exists and ref.current is available (card is mounted)
@@ -117,7 +116,7 @@ const useSwipeControls = <T>(
       refs[targetIndex]?.current?.swipeBack();
       activeIndex.value = targetIndex;
     }
-  }, [activeIndex, refs, loop, clampedInitialIndex]);
+  }, [activeIndex, refs, loop, clampedSwipeBackStartIndex, dataLength]);
 
   return {
     activeIndex,

@@ -1,8 +1,8 @@
 import { type RefObject } from 'react';
-import type { SwiperCardRefType } from 'rn-swiper-list';
-declare const useSwipeControls: <T>(data: T[], loop?: boolean, initialIndex?: number) => {
+import type { SwiperCardInternalRefType } from '../internalTypes';
+declare const useSwipeControls: <T>(data: T[], loop?: boolean, initialIndex?: number, swipeBackStartIndex?: number) => {
     activeIndex: import("react-native-reanimated").SharedValue<number>;
-    refs: RefObject<SwiperCardRefType | null>[];
+    refs: RefObject<SwiperCardInternalRefType | null>[];
     swipeRight: () => void;
     swipeLeft: () => void;
     swipeBack: () => void;

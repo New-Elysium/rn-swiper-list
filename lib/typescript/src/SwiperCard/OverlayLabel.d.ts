@@ -8,6 +8,6 @@ type Props = PropsWithChildren<{
     opacityValue: SharedValue<number>;
     overlayLabelContainerStyle?: StyleProp<ViewStyle>;
 }>;
-declare const OverlayLabel: ({ inputRange, outputRange, Component, opacityValue, overlayLabelContainerStyle, }: Props) => import("react/jsx-runtime").JSX.Element;
+declare const OverlayLabel: ({ inputRange, outputRange, Component, opacityValue, overlayLabelContainerStyle, }: Props) => JSX.Element;
 export default OverlayLabel;
 //# sourceMappingURL=OverlayLabel.d.ts.map

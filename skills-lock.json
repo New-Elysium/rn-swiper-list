@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "api-design": {
+      "source": "margelo/react-native-skills",
+      "sourceType": "github",
+      "skillPath": "skills/api-design/SKILL.md",
+      "computedHash": "277207d671596f865b758b25254de6afdef96d58c808e332ef0b689d4d45d287"
+    }
+  }
+}

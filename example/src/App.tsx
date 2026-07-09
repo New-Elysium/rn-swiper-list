@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AntDesign } from '@expo/vector-icons';
-import { Swiper, type SwiperCardRefType } from 'rn-swiper-list';
+import { Swiper, type SwiperCardRefType } from '@psync/rn-swiper';
 import { ActionButton } from './components';
 
 const IMAGES: ImageSourcePropType[] = [
@@ -102,6 +102,12 @@ const App = () => {
         <Swiper
           ref={ref}
           data={IMAGES}
+          initialIndex={3}
+          restoredSwipes={[
+            { index: 0, direction: 'right' },
+            { index: 1, direction: 'left' },
+            { index: 2, direction: 'top' },
+          ]}
           cardStyle={styles.cardStyle}
           overlayLabelContainerStyle={styles.overlayLabelContainerStyle}
           renderCard={renderCard}

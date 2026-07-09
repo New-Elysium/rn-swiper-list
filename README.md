@@ -1,4 +1,4 @@
-# rn-swiper-list ⚡️
+# @psync/rn-swiper ⚡️
 
 https://github.com/Skipperlla/rn-tinder-swiper/assets/68515357/149b7418-cc2f-489b-9133-e6ba7120b277
 
@@ -7,19 +7,25 @@ https://github.com/Skipperlla/rn-tinder-swiper/assets/68515357/149b7418-cc2f-489
 ## Installation ⚙️
 
 ```sh
-yarn add rn-swiper-list
+npm install @psync/rn-swiper
 ```
 
-Or install directly from GitHub:
+Or with yarn:
 
 ```sh
-yarn add https://github.com/New-Elysium/rn-swiper-list
+yarn add @psync/rn-swiper
 ```
 
-`rn-swiper-list` needs `react-native-reanimated`, `react-native-gesture-handler`, and `react-native-worklets` packages 💎
+Or with bun:
 
 ```sh
-yarn add react-native-reanimated react-native-gesture-handler react-native-worklets
+bun add @psync/rn-swiper
+```
+
+`@psync/rn-swiper` needs `react-native-reanimated`, `react-native-gesture-handler`, and `react-native-worklets` packages 💎
+
+```sh
+npm install react-native-reanimated react-native-gesture-handler react-native-worklets
 ```
 
 👇 You also need to complete installations of these packages for more information use the links below 👇
@@ -42,6 +48,7 @@ yarn add react-native-reanimated react-native-gesture-handler react-native-workl
 - [x] Race condition prevention in callback execution
 - [x] Improved Android performance with proper thread handling
 - [x] Card virtualization for large datasets
+- [x] Persisted swipe session restore
 
 ## Important Notes ⚠️
 
@@ -72,6 +79,7 @@ For large datasets (100+ cards), enable `virtualizeCards={true}` to improve perf
 | data                       | array                    | Array of data objects used to render the cards.                                                                                                                                    | Yes      |                                |
 | renderCard                 | func(cardData,cardIndex) | Function that renders a card based on the provided data and index.                                                                                                                 | Yes      |                                |
 | initialIndex               | number                   | Initial card index to display when the component first mounts (updates after mount are ignored). Value is clamped to [0, data.length - 1].                                         | No       | 0                              |
+| restoredSwipes             | array                    | Previously swiped card indexes and directions to restore on mount. The continuous restored sequence before `initialIndex` is positioned offscreen without firing swipe callbacks, so `swipeBack()` can rewind through it. | No       |                                |
 | prerenderItems             | number                   | Number of cards to prerender ahead of the active card for better performance. Defaults to `Math.max(data.length - 1, 1)` which ensures optimal rendering for different data sizes. | No       | `Math.max(data.length - 1, 1)` |
 | cardStyle                  | object                   | CSS style properties applied to each card. These can be applied inline.                                                                                                            |          |                                |
 | flippedCardStyle           | object                   | CSS style properties for the back of the card.                                                                                                                                     |          |                                |
@@ -151,6 +159,30 @@ For large datasets (100+ cards), enable `virtualizeCards={true}` to improve perf
 | swipeTop    | callback | Animates the card to fling to the top and calls onSwipeTop       |
 | swipeBottom | callback | Animates the card to fling to the bottom and calls onSwipeBottom |
 | flipCard    | callback | Flips the card to show the back content                          |
+
+## Restoring a swipe session
+
+Use `initialIndex` for the active card and `restoredSwipes` for the cards that were already swiped before the component mounted. Each restored swipe uses the original data index and one of the generic directions: `'left'`, `'right'`, `'top'`, or `'bottom'`. `swipeBack()` can rewind through the continuous restored sequence immediately before `initialIndex`.
+
+`restoredSwipes` is intended to seed the swiper when it mounts, like `initialIndex`. Live controlled updates to `restoredSwipes` after mount are not supported. Load any persisted swipe choices before rendering the swiper, pass the matching `initialIndex` and continuous `restoredSwipes` sequence, then let the swiper manage runtime swipes and `swipeBack()` internally. To apply a different restored session, remount the swiper with the new restore props.
+
+Restoration is silent: `onSwipeLeft`, `onSwipeRight`, `onSwipeTop`, and `onSwipeBottom` are not called for restored entries. When you call `swipeBack()`, restored cards animate back with the same swipe-back spring configuration used for cards swiped during the current runtime session.
+
+```tsx
+import { Swiper } from '@psync/rn-swiper';
+
+<Swiper
+  ref={ref}
+  data={data}
+  initialIndex={3}
+  restoredSwipes={[
+    { index: 0, direction: 'right' },
+    { index: 1, direction: 'left' },
+    { index: 2, direction: 'top' },
+  ]}
+  renderCard={(item) => <Card item={item} />}
+/>
+```
 
 ## Swipe Animation Spring Configs (Animation Speed)
 
