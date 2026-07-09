@@ -223,7 +223,7 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AntDesign } from '@expo/vector-icons';
-import { Swiper, type SwiperCardRefType } from 'rn-swiper-list';
+import { Swiper, type SwiperCardRefType } from '@psync/rn-swiper';
 
 import { ActionButton } from '../components';
 
@@ -523,7 +523,6 @@ type SwiperOptions<T> = {
   keyExtractor?: (item: T, index: number) => string | number;
   FlippedContent?: (item: T, index: number) => JSX.Element;
   loop?: boolean;
-  FlippedContent?: (item: T, index: number) => JSX.Element;
   /*
    * Children components
    */
