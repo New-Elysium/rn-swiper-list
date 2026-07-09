@@ -314,12 +314,8 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
     resetAfterLoop,
   ]);
 
-  const inputRangeX = React.useMemo(() => {
-    return translateXRange ?? [];
-  }, [translateXRange]);
-  const inputRangeY = React.useMemo(() => {
-    return translateYRange ?? [];
-  }, [translateYRange]);
+  const inputRangeX = translateXRange ?? [];
+  const inputRangeY = translateYRange ?? [];
   const rotateX = useDerivedValue(() => {
     return interpolate(
       translateX.value,
