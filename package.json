@@ -91,14 +91,24 @@
     "example"
   ],
   "jest": {
-    "preset": "react-native",
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
       "<rootDir>/lib/"
     ],
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "transform": {
+      "^.+\\.[jt]sx?$": "babel-jest"
+    },
     "transformIgnorePatterns": [
       "node_modules/(?!(react-native|@react-native|react-native-reanimated|react-native-gesture-handler|react-native-worklets)/)"
-    ]
+    ],
+    "testEnvironment": "node",
+    "haste": {
+      "defaultPlatform": "ios",
+      "platforms": ["android", "ios", "native"]
+    }
   },
   "commitlint": {
     "extends": [
