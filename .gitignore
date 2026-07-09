@@ -1,16 +1,10 @@
 # OSX
-#
 .DS_Store
-
-# XDE
-.expo/
 
 # VSCode
 .vscode/
-jsconfig.json
 
 # Xcode
-#
 build/
 *.pbxuser
 !default.pbxuser
@@ -30,8 +24,7 @@ DerivedData
 project.xcworkspace
 **/.xcode.env.local
 
-# Android/IJ
-#
+# Android
 .classpath
 .cxx
 .gradle
@@ -42,43 +35,26 @@ local.properties
 android.iml
 
 # Cocoapods
-#
 example/ios/Pods
 
 # Ruby
 example/vendor/
 
-# node.js
-#
+# Node
 node_modules/
 npm-debug.log
-yarn-debug.log
 yarn-error.log
 yarn.lock
 
 # Build output
 lib/
 
-# BUCK
-buck-out/
-\.buckd/
-android/app/libs
-android/keystores/debug.keystore
-
-# Yarn (no longer used - switched to Bun)
-.yarn/*
-!.yarn/patches
-
-# BUCK
 # Expo
 .expo/
 
-# Turborepo
-.turbo/
+# Bun
+.bun/
 
 # React Native Codegen
-ios/generated
-android/generated
-
-# React Native Nitro Modules
-nitrogen/
+example/ios/generated
+example/android/generated
