@@ -1,6 +1,6 @@
 {
   "name": "@psync/rn-swiper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "⚡ Lightning fast and customizable tinder-like swiper for React Native",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",

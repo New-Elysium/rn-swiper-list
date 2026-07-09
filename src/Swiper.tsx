@@ -171,7 +171,7 @@ const Swiper = <T,>(
         scheduleOnRN(onSwipedAll);
       }
     },
-    [data]
+    [data.length]
   );
 
   //Listen to the activeIndex value

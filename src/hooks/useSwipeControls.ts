@@ -2,7 +2,6 @@ import {
   createRef,
   useCallback,
   useMemo,
-  type RefObject,
 } from 'react';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -27,13 +26,10 @@ const useSwipeControls = <T>(
   const dataLength = data.length;
 
   const refs = useMemo(() => {
-    let cardRefs: RefObject<SwiperCardInternalRefType | null>[] = [];
-
-    for (let i = 0; i < data.length; i++) {
-      cardRefs.push(createRef<SwiperCardInternalRefType>());
-    }
-    return cardRefs;
-  }, [data]);
+    return Array.from({ length: data.length }, () =>
+      createRef<SwiperCardInternalRefType>()
+    );
+  }, [data.length]);
 
   const updateActiveIndex = useCallback(() => {
     if (loop && activeIndex.value >= dataLength - 1) {
