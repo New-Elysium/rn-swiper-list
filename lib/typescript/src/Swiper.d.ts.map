@@ -1,1 +1,1 @@
-{"version":3,"file":"Swiper.d.ts","sourceRoot":"","sources":["../../../src/Swiper.tsx"],"names":[],"mappings":"AAAA,OAAO,KAKN,MAAM,OAAO,CAAC;AAGf,OAAO,KAAK,EAGV,aAAa,EAEd,MAAM,SAAS,CAAC;yBAiBD,CAAC;;;;;;;mBA0RyB,KAAK,CAAC,SAAS"}
+{"version":3,"file":"Swiper.d.ts","sourceRoot":"","sources":["../../../src/Swiper.tsx"],"names":[],"mappings":"AAAA,OAAO,KAKN,MAAM,OAAO,CAAC;AAGf,OAAO,KAAK,EAGV,aAAa,EAEd,MAAM,YAAS,CAAC;yBAiBD,CAAC;;;;;;;mBA0RyB,KAAK,CAAC,SAAS"}

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SwiperOptions } from './types';
+import type { SwiperOptions } from './types.js';
 declare const _default: <T>(props: SwiperOptions<T> & React.RefAttributes<{
     swipeRight: () => void;
     swipeLeft: () => void;
