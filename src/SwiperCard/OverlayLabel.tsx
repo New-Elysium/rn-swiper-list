@@ -36,7 +36,7 @@ const OverlayLabel = ({
   return (
     <Animated.View
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         animatedStyle,
         overlayLabelContainerStyle,
       ]}

@@ -1,6 +1,16 @@
 {
-  "extends": "../tsconfig",
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    // Avoid expo-cli auto-generating a tsconfig
-  }
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@psync/rn-swiper": [
+        "../src/index"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }
