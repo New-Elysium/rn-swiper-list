@@ -1,6 +1,6 @@
 {
   "name": "@psync/rn-swiper",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "⚡ Lightning fast and customizable tinder-like swiper for React Native",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -81,9 +81,9 @@
   "peerDependencies": {
     "react": "*",
     "react-native": "*",
-    "react-native-gesture-handler": "^3.0.2",
-    "react-native-reanimated": "^4.5.1",
-    "react-native-worklets": "^0.10.2"
+    "react-native-gesture-handler": "*",
+    "react-native-reanimated": "*",
+    "react-native-worklets": "*"
   },
   "workspaces": [
     "example"
