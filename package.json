@@ -44,14 +44,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Skipperlla/rn-swiper-list.git"
+    "url": "git+https://github.com/New-Elysium/rn-swiper-list.git"
   },
   "author": "Omer Esmer <oesmer.oe@gmail.com> (https://github.com/Skipperlla)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Skipperlla/rn-swiper-list/issues"
+    "url": "https://github.com/New-Elysium/rn-swiper-list/issues"
   },
-  "homepage": "https://github.com/Skipperlla/rn-swiper-list#readme",
+  "homepage": "https://github.com/New-Elysium/rn-swiper-list#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
