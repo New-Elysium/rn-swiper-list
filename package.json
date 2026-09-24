@@ -85,9 +85,6 @@
     "react-native-reanimated": "*",
     "react-native-worklets": "*"
   },
-  "workspaces": [
-    "example"
-  ],
   "jest": {
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
