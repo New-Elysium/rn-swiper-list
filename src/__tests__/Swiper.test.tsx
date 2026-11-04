@@ -35,6 +35,34 @@ const settle = () => act(() => jest.runOnlyPendingTimersAsync());
  */
 const runAnimations = () => act(() => jest.advanceTimersByTimeAsync(5000));
 
+/** Current animated style of a card's outer (gesture) view. */
+const cardStyle = (index: number) => {
+  let node = screen.getByTestId(`card-${index}`).parent;
+  while (
+    node &&
+    !('pointerEvents' in (node.props.jestAnimatedStyle?.value ?? {}))
+  ) {
+    node = node.parent;
+  }
+  if (!node) throw new Error(`No animated card view for card ${index}`);
+  return node.props.jestAnimatedStyle.value as {
+    opacity: number;
+    pointerEvents: string;
+    transform: Record<string, number>[];
+  };
+};
+const scaleOf = (index: number) =>
+  cardStyle(index).transform.find((t) => 'scale' in t)?.scale;
+
+const tap = (index: number) => {
+  const controller = createGestureController(
+    getByGestureTestId(`swiper-card-tap-${index}`)
+  );
+  controller.begin();
+  controller.activate();
+  controller.end();
+};
+
 const pan = (
   index: number,
   { translationX = 0, translationY = 0, velocityX = 0, velocityY = 0 } = {}
@@ -191,15 +219,58 @@ describe('<Swiper /> gestures', () => {
     const onPress = jest.fn();
     await renderSwiper({ onPress });
 
-    const controller = createGestureController(
-      getByGestureTestId('swiper-card-tap-0')
-    );
-    controller.begin();
-    controller.activate();
-    controller.end();
+    tap(0);
     await settle();
 
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores taps on cards behind the active one and on swiped cards', async () => {
+    const onPress = jest.fn();
+    await renderSwiper({ onPress });
+
+    tap(1);
+    await settle();
+    pan(0, { translationX: 300 });
+    // Card 0 is still flying off when it is tapped
+    tap(0);
+    await runAnimations();
+
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('stops following the finger when the card is swiped by ref mid-drag', async () => {
+    const onSwipeRight = jest.fn();
+    const onSwipeLeft = jest.fn();
+    const onIndexChange = jest.fn();
+    const ref = await renderSwiper({
+      onSwipeRight,
+      onSwipeLeft,
+      onIndexChange,
+    });
+
+    const controller = createGestureController(
+      getByGestureTestId('swiper-card-pan-0')
+    );
+    controller.begin();
+    controller.activate();
+    controller.update({ translationX: -50, translationY: 0 });
+    await act(async () => ref.current?.swipeRight());
+    // Let the scheduled UI-thread swipe start before the finger moves again
+    await settle();
+    // The finger keeps moving and is released past the left threshold
+    controller.update({ translationX: -300, translationY: 0 });
+    controller.end({ translationX: -300, translationY: 0 });
+    await runAnimations();
+
+    expect(onSwipeRight.mock.calls).toEqual([[0]]);
+    expect(onSwipeLeft).not.toHaveBeenCalled();
+    // The card finished offscreen to the right, not where the finger was
+    const translateX = cardStyle(0).transform.find(
+      (t) => 'translateX' in t
+    )?.translateX;
+    expect(translateX).toBeGreaterThan(750);
+    expect(onIndexChange.mock.calls.map(([i]) => i)).toEqual([1]);
   });
 });
 
@@ -284,6 +355,51 @@ describe('<Swiper /> imperative API', () => {
     await runAnimations();
 
     expect(onSwipedAll).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('<Swiper /> stack', () => {
+  it('only the active card receives touches', async () => {
+    await renderSwiper();
+    expect(cardStyle(0).pointerEvents).toBe('auto');
+    expect(cardStyle(1).pointerEvents).toBe('none');
+
+    pan(0, { translationX: 300 });
+    await runAnimations();
+
+    expect(cardStyle(0).pointerEvents).toBe('none');
+    expect(cardStyle(1).pointerEvents).toBe('auto');
+  });
+
+  it('animates the next card up to full size', async () => {
+    await renderSwiper();
+    expect(scaleOf(0)).toBe(1);
+    expect(scaleOf(1)).toBeCloseTo(0.93);
+
+    pan(0, { translationX: 300 });
+    await settle();
+    await act(() => jest.advanceTimersByTimeAsync(100));
+    const midway = scaleOf(1)!;
+    expect(midway).toBeGreaterThan(0.93);
+    expect(midway).toBeLessThan(1);
+
+    await runAnimations();
+    expect(scaleOf(1)).toBe(1);
+    expect(scaleOf(2)).toBeCloseTo(0.93);
+  });
+
+  it('fades in cards as they enter the prerender range', async () => {
+    await renderSwiper({ prerenderItems: 2 });
+    expect(cardStyle(2).opacity).toBe(0);
+
+    pan(0, { translationX: 300 });
+    await settle();
+    await act(() => jest.advanceTimersByTimeAsync(100));
+    expect(cardStyle(2).opacity).toBeGreaterThan(0);
+    expect(cardStyle(2).opacity).toBeLessThan(1);
+
+    await runAnimations();
+    expect(cardStyle(2).opacity).toBe(1);
   });
 });
 

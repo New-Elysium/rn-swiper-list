@@ -2,13 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Features
+
+- The library is compiled with the React Compiler (`babel-plugin-react-compiler` 1.0) before publishing. Apps get the memoization without enabling the compiler.
+- When the active card changes, the cards behind it scale up and fade in over 250 ms instead of jumping. Respects the system reduce-motion setting.
+
+### Bug Fixes
+
+- A card that is flying off no longer swallows touches meant for the next card: you can grab the next card immediately. Only the active card receives touches (`pointerEvents`).
+- Taps on a card that is flying off, or on cards behind the active one, no longer call `onPress`.
+- Swiping the active card with a ref method while it is being dragged no longer snaps it back to the finger or swipes a second card on release.
+
+### Performance
+
+- Gestures of inactive cards are disabled natively through Gesture Handler 3's shared-value `enabled` option, without a re-render.
+- The window size is read once in `Swiper` instead of in every card.
+
 ## [2.0.0](https://github.com/New-Elysium/rn-swiper-list/compare/v1.1.0...v2.0.0) (2026-11-04)
 
 ### ⚠ BREAKING CHANGES
 
-- Requires `react-native-gesture-handler` >= 3.0. Card gestures use the Gesture Handler 3 hook API (`usePanGesture`, `useTapGesture`, `useCompetingGestures`).
-- Requires `react` >= 19.0. `Swiper` takes `ref` as a regular prop; `forwardRef` is no longer used.
-- Requires `react-native-reanimated` >= 4.0 and `react-native-worklets` >= 0.13. Peer dependency ranges are now enforced instead of `*`.
+- Requires `react-native-gesture-handler` >= 3.4. Card gestures use the Gesture Handler 3 hook API (`usePanGesture`, `useTapGesture`, `useCompetingGestures`).
+- Requires `react` >= 19.3 and `react-native` >= 0.88. `Swiper` takes `ref` as a regular prop; `forwardRef` is no longer used.
+- Requires `react-native-reanimated` >= 4.5 and `react-native-worklets` >= 0.13. Peer dependency ranges are now enforced instead of `*`.
 - Spring props are typed as `SwiperSpringConfig` (Reanimated's public `WithSpringConfig`) instead of a type deep-imported from Reanimated internals.
 - Default translate, rotate and overlay ranges follow the window size (`useWindowDimensions`) instead of the screen size captured at import time.
 

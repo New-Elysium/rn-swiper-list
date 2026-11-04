@@ -5,10 +5,11 @@ This file provides guidance for AI assistants working with the @psync/rn-swiper 
 ## Project Overview
 
 @psync/rn-swiper is a high-performance, Tinder-like swipe card component for React Native. It uses:
-- **react-native-reanimated** (v4+) for smooth UI thread animations
-- **react-native-gesture-handler** (v3+, hook API) for gesture detection
+- **react-native-reanimated** (v4.5+) for smooth UI thread animations
+- **react-native-gesture-handler** (v3.4+, hook API) for gesture detection
 - **react-native-worklets** (v0.13+) for thread-safe callback execution between UI and JS threads
-- **React 19+** (`ref` is a regular prop; no `forwardRef`)
+- **React 19.3+ / React Native 0.88+** (`ref` is a regular prop; no `forwardRef`)
+- **React Compiler** compiles the published library (see Tooling Notes)
 
 ## Architecture
 
@@ -61,6 +62,11 @@ ref.current?.flipCard()
 **4. Gesture Handler 3 hooks**
 `SwiperCard` uses `usePanGesture` / `useTapGesture` composed with `useCompetingGestures`. Inline callbacks in these config objects are auto-workletized by the worklets Babel plugin; functions created with `useCallback` that run on the UI thread need an explicit `'worklet'` directive. Pan decisions happen in `onDeactivate` (it has `translationX`/`velocityX`; `onFinalize` does not) via `resolveSwipeDirection()` from `utils.ts`.
 
+Only the active card handles input, enforced in three layers:
+- `enabled: isActive` (a `useDerivedValue`) on both gestures: Gesture Handler 3 accepts shared values in gesture config and updates them natively without a re-render. Flipping `enabled` mid-gesture cancels the gesture.
+- Callbacks also check `Math.floor(activeIndex.get()) === index` directly, because derived values update a frame late and `enabled` reaches native asynchronously. This also stops a card that was swiped by ref mid-drag from following the finger.
+- `pointerEvents: 'none'` in the animated card style for every card except the active one, so a card flying off doesn't swallow touches meant for the next card (the view would still be hit-tested even with its gestures disabled).
+
 Do not pass dependency arrays to `useAnimatedReaction` — Reanimated 4 ignores them on native and warns; the Babel plugin captures closures.
 
 ### Important Implementation Details
@@ -74,6 +80,7 @@ Do not pass dependency arrays to `useAnimatedReaction` — Reanimated 4 ignores 
 **Prerendering**
 - `prerenderItems` controls how many cards are rendered ahead (default: `Math.max(data.length - 1, 1)`)
 - Cards outside prerender range have `opacity: 0` via animated styles
+- Stack scale (`STACK_SCALE_STEP`) and opacity animate with `withTiming` returned from `useAnimatedStyle` (`STACK_TRANSITION_MS`). Reanimated uses the target value on the first render and continues a running timing when the target is unchanged, so the per-frame drag updates don't restart it
 - This prevents mounting all cards at once while keeping transitions smooth
 
 **Virtualization (virtualizeCards prop)**
@@ -123,7 +130,7 @@ bun run release      # Uses release-it for versioning
 
 Tests are in `src/__tests__/`:
 - `utils.test.ts` — pure logic imported from `src/utils.ts` (index clamping, prerender count, restored swipes, virtualized render range, `resolveSwipeDirection`). Test the real functions; never re-implement logic inline in tests.
-- `Swiper.test.tsx` — renders `<Swiper>` with React Native Testing Library 14 (`await render(...)`, async `act`) and drives gestures with `createGestureController(getByGestureTestId('swiper-card-pan-<index>'))` from `react-native-gesture-handler/jest-utils`. Use fake timers and `jest.advanceTimersByTimeAsync(5000)` so springs finish and `onSwipe*` callbacks fire.
+- `Swiper.test.tsx` — renders `<Swiper>` with React Native Testing Library 14 (`await render(...)`, async `act`) and drives gestures with `createGestureController(getByGestureTestId('swiper-card-pan-<index>'))` from `react-native-gesture-handler/jest-utils`. Use fake timers and `jest.advanceTimersByTimeAsync(5000)` so springs finish and `onSwipe*` callbacks fire. `cardStyle(index)` reads a card's current animated style (`jestAnimatedStyle`) for asserting `pointerEvents`, scale and opacity. `scheduleOnUI` runs on a timer in Jest: call `settle()` after a ref method if the test needs the UI-thread work to have started.
 
 - `e2e/swipe.e2e.mjs` — headless Chromium drives the example's web export with real mouse drags and button clicks and asserts on the callbacks the example logs. Runs in CI (`e2e-web` job). Set `E2E_SCREENSHOTS=<dir>` for per-step screenshots and `E2E_CHROMIUM=<path>` to use a specific browser binary.
 
@@ -131,6 +138,7 @@ Jest setup: `@react-native/jest-preset`, `react-native-reanimated/jest/resolver`
 
 ## Tooling Notes
 
+- **React Compiler**: `babel.config.js` adds `babel-plugin-react-compiler` (`target: '19'`, `panicThreshold: 'all_errors'`) for library source; bob uses that file because the module target sets `configFile: true`. `all_errors` fails the build instead of silently skipping a component — e.g. a call expression as a destructuring default (`prerenderItems = Math.max(...)`) makes the compiler bail out, so compute such defaults after destructuring. Jest runs the compiled code with the worklets plugin after it (as a consuming app would); `RN_SWIPER_REACT_COMPILER=0` disables the compiler, and CI runs Jest both ways. The example enables `experiments.reactCompiler`, so the E2E test runs compiled code too.
 - **TypeScript 7** has no JS API yet. `typescript` is aliased to `@typescript/typescript6` (for typescript-eslint), and `@typescript/native` provides the TS 7 `tsc`, which bob uses (`tsc` option in the bob config).
 - **ESLint 10**: `@react-native/eslint-config` only declares ESLint ^8 || ^9. `eslint.config.mjs` reuses its flat config, swaps `@babel/eslint-parser` for `@typescript-eslint/parser`, drops the Flow block, and wraps legacy plugins with `fixupConfigRules`. It also enables `eslint-plugin-react-hooks` `recommended-latest` (React Compiler rules).
 - **Bun workspaces**: the root `workspaces: ["example"]` is required by `react-native-monorepo-config` in `example/metro.config.js`.
@@ -166,7 +174,9 @@ Jest setup: `@react-native/jest-preset`, `react-native-reanimated/jest/resolver`
 - **Limit `prerenderItems`** for large datasets to reduce initial render cost
 - **Use `virtualizeCards={true}`** for large datasets (100+ cards) to reduce memory usage
 - **Memoize render functions** passed as props (`renderCard`, `FlippedContent`)
-- Card styles use `withTiming` for smooth opacity/scale transitions
+- Card scale/opacity animate with `withTiming` when the active card changes
+- `Swiper` reads `useWindowDimensions` once and passes `windowWidth`/`windowHeight` to cards (internal props, not in `SwiperCardOptions`)
+- Keep `memo(SwiperCard)` even with the React Compiler: the compiler memoizes `Swiper`'s card list as one unit, so when the render range changes `memo` is what stops unchanged cards from re-rendering
 
 ## Gotchas
 

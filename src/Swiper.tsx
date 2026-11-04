@@ -28,7 +28,7 @@ function Swiper<T>(props: SwiperProps<T>) {
     ref,
     data,
     renderCard,
-    prerenderItems = Math.max(data.length - 1, 1),
+    prerenderItems: prerenderItemsProp,
     onSwipeRight,
     onSwipeLeft,
     onSwipedAll,
@@ -79,6 +79,10 @@ function Swiper<T>(props: SwiperProps<T>) {
     restoredSwipes,
     virtualizeCards = false,
   } = props;
+  // Not a destructuring default: the React Compiler cannot reorder a call
+  // expression there and would skip compiling this component.
+  const prerenderItems = prerenderItemsProp ?? Math.max(data.length - 1, 1);
+  // Read once here and passed down, instead of once per card.
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   // Default ranges follow the window size; memoized so cards don't re-render.
@@ -282,6 +286,8 @@ function Swiper<T>(props: SwiperProps<T>) {
           flipDuration={flipDuration}
           overlayLabelContainerStyle={overlayLabelContainerStyle}
           restoredSwipeDirection={restoredSwipeDirections.get(actualIndex)}
+          windowWidth={windowWidth}
+          windowHeight={windowHeight}
         >
           {renderCard(item, actualIndex)}
         </SwiperCard>

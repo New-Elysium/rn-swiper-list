@@ -125,11 +125,11 @@ async function step(name, action, expected = []) {
   await sleep(expected.length ? SETTLE_MS : 0);
 }
 
-async function drag(dx, dy, steps = 25) {
-  await page.mouse.move(CARD.x, CARD.y);
+async function drag(dx, dy, steps = 25, from = CARD) {
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   for (let i = 1; i <= steps; i++) {
-    await page.mouse.move(CARD.x + (dx * i) / steps, CARD.y + (dy * i) / steps);
+    await page.mouse.move(from.x + (dx * i) / steps, from.y + (dy * i) / steps);
     await sleep(16);
   }
   await page.mouse.up();
@@ -246,11 +246,19 @@ try {
     () => drag(180, 0),
     ['cardIndex 3']
   );
-  await step('exact horizontal drag left -> onSwipeLeft', () => drag(-180, 0), [
-    'onSwipeLeft 4',
-  ]);
   await step('fast short flick without a velocity threshold springs back', () =>
     drag(60, 0, 3)
+  );
+  // Swipe card 4 left, then grab card 5 while card 4 is still flying off
+  // over it: the outgoing card must not swallow the touch.
+  await step(
+    'exact horizontal drag left, then grab the next card mid-fly-off',
+    async () => {
+      await drag(-180, 0);
+      await sleep(50);
+      await drag(180, 0, 25, { x: CARD.x - 120, y: CARD.y });
+    },
+    ['onSwipeLeft 4', 'cardIndex 5']
   );
 } catch (error) {
   fatal = error;

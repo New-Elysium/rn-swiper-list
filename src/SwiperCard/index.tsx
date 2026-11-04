@@ -5,7 +5,7 @@ import {
   type PropsWithChildren,
   type Ref,
 } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet } from 'react-native';
 import {
   GestureDetector,
   useCompetingGestures,
@@ -31,8 +31,16 @@ import OverlayLabel from './OverlayLabel';
 
 const EMPTY_RANGE: number[] = [];
 
+/** Scale lost per card behind the active one. */
+const STACK_SCALE_STEP = 0.07;
+/** Duration of the scale/opacity change when the active card changes. */
+const STACK_TRANSITION_MS = 250;
+
 type SwiperCardProps<T> = PropsWithChildren<SwiperCardOptions<T>> & {
   ref?: Ref<SwiperCardInternalRefType>;
+  /** Window size, read once by `Swiper` instead of in every card. */
+  windowWidth: number;
+  windowHeight: number;
 };
 
 function SwiperCard<T>({
@@ -85,10 +93,11 @@ function SwiperCard<T>({
   overlayLabelContainerStyle,
   swipeVelocityThreshold,
   restoredSwipeDirection,
+  windowWidth,
+  windowHeight,
 }: SwiperCardProps<T>) {
-  const { width, height } = useWindowDimensions();
-  const maxCardTranslation = width * 1.5;
-  const maxCardTranslationY = height * 1.5;
+  const maxCardTranslation = windowWidth * 1.5;
+  const maxCardTranslationY = windowHeight * 1.5;
 
   const restoredTranslation = getSwipeTranslation(
     restoredSwipeDirection,
@@ -100,6 +109,13 @@ function SwiperCard<T>({
   const isFlipped = useSharedValue(false);
   // Whether the current pan started while this card was the active one.
   const isDragging = useSharedValue(false);
+  // Only the active card handles gestures. Passed as the gestures' `enabled`
+  // option, which Gesture Handler 3 updates natively without a re-render.
+  // Derived values update a frame late, so callbacks read `activeIndex`
+  // directly instead.
+  const isActive = useDerivedValue(
+    () => Math.floor(activeIndex.get()) === index
+  );
   const hasFlippedContent = FlippedContent != null;
 
   /**
@@ -229,8 +245,15 @@ function SwiperCard<T>({
 
   const tap = useTapGesture({
     testID: `swiper-card-tap-${index}`,
+    enabled: isActive,
     onDeactivate: (event) => {
-      if (!event.canceled && onPress) {
+      // `enabled` updates asynchronously; also check the index here so a
+      // card that is flying off never reports a press.
+      if (
+        !event.canceled &&
+        onPress &&
+        Math.floor(activeIndex.get()) === index
+      ) {
         scheduleOnRN(onPress);
       }
     },
@@ -238,20 +261,23 @@ function SwiperCard<T>({
 
   const pan = usePanGesture({
     testID: `swiper-card-pan-${index}`,
+    enabled: isActive,
     onBegin: () => {
-      const isActive = Math.floor(activeIndex.get()) === index;
-      isDragging.set(isActive);
-      if (isActive && onSwipeStart) scheduleOnRN(onSwipeStart);
+      const active = Math.floor(activeIndex.get()) === index;
+      isDragging.set(active);
+      if (active && onSwipeStart) scheduleOnRN(onSwipeStart);
     },
     onUpdate: (event) => {
-      if (!isDragging.get()) return;
+      // Stop following the finger if the card was swiped away imperatively
+      // (ref.swipeRight() etc.) while being dragged.
+      if (!isDragging.get() || Math.floor(activeIndex.get()) !== index) return;
       if (onSwipeActive) scheduleOnRN(onSwipeActive);
 
       translateX.set(event.translationX);
       translateY.set(event.translationY);
     },
     onDeactivate: (event) => {
-      if (!isDragging.get()) return;
+      if (!isDragging.get() || Math.floor(activeIndex.get()) !== index) return;
 
       const swipeDirection = event.canceled
         ? null
@@ -292,15 +318,25 @@ function SwiperCard<T>({
     const shouldRender = indexDiff >= -1 && indexDiff < prerenderItems;
 
     // Clamp indexDiff to minimum 0 to prevent scale > 1 for swiped cards
-    const scale = 1 - 0.07 * Math.max(0, indexDiff);
+    const scale = 1 - STACK_SCALE_STEP * Math.max(0, indexDiff);
+
+    // Animate the stack moving up when the active card changes. The first
+    // render uses the target value, and re-running with an unchanged target
+    // (every drag frame) continues the running timing instead of restarting.
+    const stackTiming = {
+      duration: STACK_TRANSITION_MS,
+      reduceMotion: ReduceMotion.System,
+    };
 
     return {
-      opacity: shouldRender ? 1 : 0,
+      opacity: withTiming(shouldRender ? 1 : 0, stackTiming),
+      // A card flying off must not swallow touches meant for the next card
+      pointerEvents: indexDiff === 0 ? 'auto' : 'none',
       position: 'absolute',
       zIndex: -index,
       transform: [
         { rotate: `${rotateX.get()}rad` },
-        { scale },
+        { scale: withTiming(scale, stackTiming) },
         { translateX: translateX.get() },
         { translateY: translateY.get() },
       ],
