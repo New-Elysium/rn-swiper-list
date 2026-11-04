@@ -9,7 +9,11 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AntDesign } from '@expo/vector-icons';
-import { Swiper, type SwiperCardRefType } from '@psync/rn-swiper';
+import {
+  Swiper,
+  type SwiperCardRefType,
+  type SwiperRestoredSwipe,
+} from '@psync/rn-swiper';
 import { ActionButton } from './components';
 
 const IMAGES: ImageSourcePropType[] = [
@@ -22,6 +26,28 @@ const IMAGES: ImageSourcePropType[] = [
 ];
 
 const ICON_SIZE = 24;
+
+// Cards 0-2 were swiped in a previous session; start on card 3.
+const RESTORED_SWIPES: SwiperRestoredSwipe[] = [
+  { index: 0, direction: 'right' },
+  { index: 1, direction: 'left' },
+  { index: 2, direction: 'top' },
+];
+
+// Module-level handlers keep the Swiper props referentially stable.
+const onIndexChange = (index: number) =>
+  console.log('Current Active index', index);
+const onSwipeRight = (cardIndex: number) => console.log('cardIndex', cardIndex);
+const onSwipeLeft = (cardIndex: number) =>
+  console.log('onSwipeLeft', cardIndex);
+const onSwipeTop = (cardIndex: number) => console.log('onSwipeTop', cardIndex);
+const onSwipeBottom = (cardIndex: number) =>
+  console.log('onSwipeBottom', cardIndex);
+const onPress = () => console.log('onPress');
+const onSwipedAll = () => console.log('onSwipedAll');
+const onSwipeActive = () => console.log('onSwipeActive');
+const onSwipeStart = () => console.log('onSwipeStart');
+const onSwipeEnd = () => console.log('onSwipeEnd');
 
 const App = () => {
   const ref = useRef<SwiperCardRefType>(null);
@@ -103,55 +129,32 @@ const App = () => {
           ref={ref}
           data={IMAGES}
           initialIndex={3}
-          restoredSwipes={[
-            { index: 0, direction: 'right' },
-            { index: 1, direction: 'left' },
-            { index: 2, direction: 'top' },
-          ]}
           cardStyle={styles.cardStyle}
           overlayLabelContainerStyle={styles.overlayLabelContainerStyle}
           renderCard={renderCard}
-          onIndexChange={(index) => {
-            console.log('Current Active index', index);
-          }}
-          onSwipeRight={(cardIndex) => {
-            console.log('cardIndex', cardIndex);
-          }}
-          onPress={() => {
-            console.log('onPress');
-          }}
-          onSwipedAll={() => {
-            console.log('onSwipedAll');
-          }}
+          restoredSwipes={RESTORED_SWIPES}
+          onIndexChange={onIndexChange}
+          onSwipeRight={onSwipeRight}
+          onPress={onPress}
+          onSwipedAll={onSwipedAll}
           FlippedContent={renderFlippedCard}
-          onSwipeLeft={(cardIndex) => {
-            console.log('onSwipeLeft', cardIndex);
-          }}
-          onSwipeTop={(cardIndex) => {
-            console.log('onSwipeTop', cardIndex);
-          }}
-          onSwipeBottom={(cardIndex) => {
-            console.log('onSwipeBottom', cardIndex);
-          }}
+          onSwipeLeft={onSwipeLeft}
+          onSwipeTop={onSwipeTop}
+          onSwipeBottom={onSwipeBottom}
           OverlayLabelRight={OverlayLabelRight}
           OverlayLabelLeft={OverlayLabelLeft}
           OverlayLabelTop={OverlayLabelTop}
           OverlayLabelBottom={OverlayLabelBottom}
-          onSwipeActive={() => {
-            console.log('onSwipeActive');
-          }}
-          onSwipeStart={() => {
-            console.log('onSwipeStart');
-          }}
-          onSwipeEnd={() => {
-            console.log('onSwipeEnd');
-          }}
+          onSwipeActive={onSwipeActive}
+          onSwipeStart={onSwipeStart}
+          onSwipeEnd={onSwipeEnd}
         />
       </View>
 
       <View style={styles.buttonsContainer}>
         <ActionButton
           style={styles.button}
+          accessibilityLabel="Flip card"
           onTap={() => {
             ref.current?.flipCard();
           }}
@@ -160,6 +163,7 @@ const App = () => {
         </ActionButton>
         <ActionButton
           style={styles.button}
+          accessibilityLabel="Undo last swipe"
           onTap={() => {
             ref.current?.swipeBack();
           }}
@@ -168,6 +172,7 @@ const App = () => {
         </ActionButton>
         <ActionButton
           style={styles.button}
+          accessibilityLabel="Swipe left"
           onTap={() => {
             ref.current?.swipeLeft();
           }}
@@ -176,6 +181,7 @@ const App = () => {
         </ActionButton>
         <ActionButton
           style={styles.button}
+          accessibilityLabel="Swipe down"
           onTap={() => {
             ref.current?.swipeBottom();
           }}
@@ -184,6 +190,7 @@ const App = () => {
         </ActionButton>
         <ActionButton
           style={styles.button}
+          accessibilityLabel="Swipe up"
           onTap={() => {
             ref.current?.swipeTop();
           }}
@@ -192,6 +199,7 @@ const App = () => {
         </ActionButton>
         <ActionButton
           style={styles.button}
+          accessibilityLabel="Swipe right"
           onTap={() => {
             ref.current?.swipeRight();
           }}
@@ -216,7 +224,7 @@ const styles = StyleSheet.create({
     bottom: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
+    gap: 16,
   },
   button: {
     height: 50,
@@ -263,6 +271,8 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   subContainer: {
+    // Stretch so the absolutely positioned cards get a non-zero width
+    alignSelf: 'stretch',
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',

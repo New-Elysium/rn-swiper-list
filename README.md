@@ -28,6 +28,17 @@ bun add @psync/rn-swiper
 npm install react-native-reanimated react-native-gesture-handler react-native-worklets
 ```
 
+### Requirements
+
+| Package                        | Version   |
+| :----------------------------- | :-------- |
+| `react`                        | `>= 19.0` |
+| `react-native-gesture-handler` | `>= 3.0`  |
+| `react-native-reanimated`      | `>= 4.0`  |
+| `react-native-worklets`        | `>= 0.13` |
+
+Version 2.0 is tested with React Native 0.88.1, React 19.3.1, Gesture Handler 3.4.0, Reanimated 4.7.1, Worklets 0.13.1 and Expo SDK 58. Use `1.x` for Gesture Handler 2.
+
 👇 You also need to complete installations of these packages for more information use the links below 👇
 
 - [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/installation)
@@ -54,7 +65,7 @@ npm install react-native-reanimated react-native-gesture-handler react-native-wo
 
 ### Callback Execution Timing
 
-All swipe callbacks (`onSwipeLeft`, `onSwipeRight`, `onSwipeTop`, `onSwipeBottom`) are executed **after** the animation has been set up on the UI thread. This prevents race conditions where callback state changes could interfere with ongoing animations, ensuring smooth performance especially on Android devices.
+The swipe animation starts on the UI thread in the same frame the gesture ends, and `onIndexChange` fires right away. The direction callbacks (`onSwipeLeft`, `onSwipeRight`, `onSwipeTop`, `onSwipeBottom`) fire on the JS thread **when the swipe-out animation finishes**, so state updates in them can't interrupt the animation. With the default spring config this takes about two seconds. Pass a stiffer `swipe*SpringConfig` if you need them sooner.
 
 ### Index Parameter
 
@@ -63,6 +74,7 @@ The `cardIndex` parameter passed to swipe callbacks represents the card's positi
 ### Card Virtualization
 
 For large datasets (100+ cards), enable `virtualizeCards={true}` to improve performance. This limits the number of mounted card components by dynamically rendering only the cards near the active index. When enabled:
+
 - Only cards within the render range are mounted (active card ± buffer)
 - Keeps a buffer of 3 cards behind the active card for `swipeBack()` functionality
 - Cards outside the range are unmounted to reduce memory usage
@@ -70,41 +82,71 @@ For large datasets (100+ cards), enable `virtualizeCards={true}` to improve perf
 
 **Note**: With virtualization enabled, `swipeBack()` is limited to the last 3 swiped cards.
 
+### Loop
+
+With `loop`, swiping the last card (by gesture or by a ref method) resets every card and returns to `initialIndex`. `onSwipedAll` is not called in loop mode.
+
+### Testing
+
+Each card's gestures have a gesture-handler `testID`: `swiper-card-pan-<index>` and `swiper-card-tap-<index>`, where `<index>` is the card's index in `data`. Use them with Gesture Handler's Jest utilities:
+
+```tsx
+import {
+  createGestureController,
+  getByGestureTestId,
+} from 'react-native-gesture-handler/jest-utils';
+
+const pan = createGestureController(getByGestureTestId('swiper-card-pan-0'));
+pan.begin();
+pan.activate();
+pan.update({ translationX: 300 });
+pan.end({ translationX: 300 });
+```
+
+## Upgrading from 1.x
+
+- **Gesture Handler 3 is required.** The card gestures use the Gesture Handler 3 hook API (`usePanGesture`, `useTapGesture`, `useCompetingGestures`).
+- **React 19 is required.** `Swiper` takes `ref` as a regular prop instead of using `forwardRef`. `useRef<SwiperCardRefType>(null)` keeps working unchanged.
+- **`SpringConfig` type:** spring props are typed as `SwiperSpringConfig`, an alias of Reanimated's public `WithSpringConfig`, instead of a type deep-imported from Reanimated internals.
+- **Render props** (`renderCard`, `FlippedContent`, `OverlayLabel*`) may return any `ReactNode`.
+- **Default ranges** (`translateXRange`, `rotateInputRange`, overlay opacity ranges, …) are computed from the window size (`useWindowDimensions`) instead of the screen size captured at import time, so they follow rotation and split-screen.
+- **Fixes:** perfectly horizontal drags (for example with a mouse or trackpad) now swipe instead of snapping back. Loop mode now works for gesture swipes, not just ref methods. `virtualizeCards` with `initialIndex` no longer mounts unswiped cards on top of the stack. `onIndexChange` and `onSwipedAll` always call the latest callback you passed.
+
 # Props ✏️
 
 ## Card Props
 
-| Props                      | type                     | description                                                                                                                                                                        | required | default                        |
-| :------------------------- | :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- | :----------------------------- |
-| data                       | array                    | Array of data objects used to render the cards.                                                                                                                                    | Yes      |                                |
-| renderCard                 | func(cardData,cardIndex) | Function that renders a card based on the provided data and index.                                                                                                                 | Yes      |                                |
-| initialIndex               | number                   | Initial card index to display when the component first mounts (updates after mount are ignored). Value is clamped to [0, data.length - 1].                                         | No       | 0                              |
+| Props                      | type                     | description                                                                                                                                                                                                               | required | default                        |
+| :------------------------- | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------- | :----------------------------- |
+| data                       | array                    | Array of data objects used to render the cards.                                                                                                                                                                           | Yes      |                                |
+| renderCard                 | func(cardData,cardIndex) | Function that renders a card based on the provided data and index.                                                                                                                                                        | Yes      |                                |
+| initialIndex               | number                   | Initial card index to display when the component first mounts (updates after mount are ignored). Value is clamped to [0, data.length - 1].                                                                                | No       | 0                              |
 | restoredSwipes             | array                    | Previously swiped card indexes and directions to restore on mount. The continuous restored sequence before `initialIndex` is positioned offscreen without firing swipe callbacks, so `swipeBack()` can rewind through it. | No       |                                |
-| prerenderItems             | number                   | Number of cards to prerender ahead of the active card for better performance. Defaults to `Math.max(data.length - 1, 1)` which ensures optimal rendering for different data sizes. | No       | `Math.max(data.length - 1, 1)` |
-| cardStyle                  | object                   | CSS style properties applied to each card. These can be applied inline.                                                                                                            |          |                                |
-| flippedCardStyle           | object                   | CSS style properties for the back of the card.                                                                                                                                     |          |                                |
-| regularCardStyle           | object                   | CSS style properties for the front of the card.                                                                                                                                    |          |                                |
-| overlayLabelContainerStyle | object                   | CSS style properties for the overlay label container.                                                                                                                              |          |                                |
-| keyExtractor               | func                     | Function that returns a unique key for each card based on the provided data.                                                                                                       | No       |                                |
-| children                   | React.ReactNode          | Child components to be displayed inside the component. Used typically for composition.                                                                                             |          |                                |
-| FlippedContent             | func(item, index)        | Function that renders the content for the back of the card.                                                                                                                        | No       |                                |
-| loop                       | bool                     | If true, the swiper will loop back to the first card after the last card is swiped.                                                                                                | No       | false                          |
-| virtualizeCards            | bool                     | If true, enables card virtualization for improved performance with large datasets. Only cards near the active index are mounted. See "Card Virtualization" section above.          | No       | false                          |
+| prerenderItems             | number                   | Number of cards to prerender ahead of the active card for better performance. Defaults to `Math.max(data.length - 1, 1)` which ensures optimal rendering for different data sizes.                                        | No       | `Math.max(data.length - 1, 1)` |
+| cardStyle                  | object                   | CSS style properties applied to each card. These can be applied inline.                                                                                                                                                   |          |                                |
+| flippedCardStyle           | object                   | CSS style properties for the back of the card.                                                                                                                                                                            |          |                                |
+| regularCardStyle           | object                   | CSS style properties for the front of the card.                                                                                                                                                                           |          |                                |
+| overlayLabelContainerStyle | object                   | CSS style properties for the overlay label container.                                                                                                                                                                     |          |                                |
+| keyExtractor               | func                     | Function that returns a unique key for each card based on the provided data.                                                                                                                                              | No       |                                |
+| children                   | React.ReactNode          | Child components to be displayed inside the component. Used typically for composition.                                                                                                                                    |          |                                |
+| FlippedContent             | func(item, index)        | Function that renders the content for the back of the card.                                                                                                                                                               | No       |                                |
+| loop                       | bool                     | If true, the swiper will loop back to the first card after the last card is swiped.                                                                                                                                       | No       | false                          |
+| virtualizeCards            | bool                     | If true, enables card virtualization for improved performance with large datasets. Only cards near the active index are mounted. See "Card Virtualization" section above.                                                 | No       | false                          |
 
 ## Event callbacks
 
-| Props         | type | description                                                                                                                                                                       | default             |
-| :------------ | :--- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------ |
-| onSwipeLeft   | func | Function called when a card is swiped left. Receives the card's index in the original data array. **Note**: Callbacks execute after animation setup to prevent race conditions.   | `(cardIndex) => {}` |
-| onSwipeRight  | func | Function called when a card is swiped right. Receives the card's index in the original data array. **Note**: Callbacks execute after animation setup to prevent race conditions.  | `(cardIndex) => {}` |
-| onSwipeTop    | func | Function called when a card is swiped top. Receives the card's index in the original data array. **Note**: Callbacks execute after animation setup to prevent race conditions.    | `(cardIndex) => {}` |
-| onSwipeBottom | func | Function called when a card is swiped bottom. Receives the card's index in the original data array. **Note**: Callbacks execute after animation setup to prevent race conditions. | `(cardIndex) => {}` |
-| onSwipedAll   | func | Function called when all cards have been swiped.                                                                                                                                  | `() => {}`          |
-| onSwipeStart  | func | Function called when a swipe event starts.                                                                                                                                        | `() => {}`          |
-| onSwipeEnd    | func | Function called when a swipe event ends.                                                                                                                                          | `() => {}`          |
-| onSwipeActive | func | Function called when a swipe event is active.                                                                                                                                     | `() => {}`          |
-| onIndexChange | func | Function called when the index of the card changes. It receives the index of the card as a parameter.                                                                             | `(cardIndex) => {}` |
-| onPress       | func | Function called when the card is pressed (tapped).                                                                                                                                | `() => {}`          |
+| Props         | type | description                                                                                                                                                | default             |
+| :------------ | :--- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------ |
+| onSwipeLeft   | func | Function called when a card is swiped left. Receives the card's index in the original data array. **Note**: Fires when the swipe-out animation finishes.   | `(cardIndex) => {}` |
+| onSwipeRight  | func | Function called when a card is swiped right. Receives the card's index in the original data array. **Note**: Fires when the swipe-out animation finishes.  | `(cardIndex) => {}` |
+| onSwipeTop    | func | Function called when a card is swiped top. Receives the card's index in the original data array. **Note**: Fires when the swipe-out animation finishes.    | `(cardIndex) => {}` |
+| onSwipeBottom | func | Function called when a card is swiped bottom. Receives the card's index in the original data array. **Note**: Fires when the swipe-out animation finishes. | `(cardIndex) => {}` |
+| onSwipedAll   | func | Function called when all cards have been swiped.                                                                                                           | `() => {}`          |
+| onSwipeStart  | func | Function called when a swipe event starts.                                                                                                                 | `() => {}`          |
+| onSwipeEnd    | func | Function called when a swipe event ends.                                                                                                                   | `() => {}`          |
+| onSwipeActive | func | Function called when a swipe event is active.                                                                                                              | `() => {}`          |
+| onIndexChange | func | Function called when the index of the card changes. It receives the index of the card as a parameter.                                                      | `(cardIndex) => {}` |
+| onPress       | func | Function called when the card is pressed (tapped).                                                                                                         | `() => {}`          |
 
 ## Swipe Animation Props
 
@@ -131,16 +173,16 @@ For large datasets (100+ cards), enable `virtualizeCards={true}` to improve perf
 
 ## Overlay Labels Animation Props
 
-| props                               | type              | description                                                                                             | default                   |
-| :---------------------------------- | :---------------- | :------------------------------------------------------------------------------------------------------ | :------------------------ |
-| inputOverlayLabelRightOpacityRange  | array             | Array defining the input range for animating the opacity of the right overlay label.                    | `[0, windowWidth / 3]`    |
-| outputOverlayLabelRightOpacityRange | array             | Array defining the output opacity values for the right overlay label, corresponding to the input range. | `[0, 1]`                  |
-| inputOverlayLabelLeftOpacityRange   | array             | Array defining the input range for animating the opacity of the left overlay label.                     | `[0, -(windowWidth / 3)]` |
-| outputOverlayLabelLeftOpacityRange  | array             | Array defining the output opacity values for the left overlay label, corresponding to the input range.  | `[0, 1]`                  |
-| OverlayLabelRight                   | () => JSX.Element | Component rendered as an overlay label for right swipes.                                                |                           |
-| OverlayLabelLeft                    | () => JSX.Element | Component rendered as an overlay label for left swipes.                                                 |                           |
-| OverlayLabelTop                     | () => JSX.Element | Component rendered as an overlay label for top swipes.                                                  |                           |
-| OverlayLabelBottom                  | () => JSX.Element | Component rendered as an overlay label for bottom swipes.                                               |                           |
+| props                               | type            | description                                                                                             | default                   |
+| :---------------------------------- | :-------------- | :------------------------------------------------------------------------------------------------------ | :------------------------ |
+| inputOverlayLabelRightOpacityRange  | array           | Array defining the input range for animating the opacity of the right overlay label.                    | `[0, windowWidth / 3]`    |
+| outputOverlayLabelRightOpacityRange | array           | Array defining the output opacity values for the right overlay label, corresponding to the input range. | `[0, 1]`                  |
+| inputOverlayLabelLeftOpacityRange   | array           | Array defining the input range for animating the opacity of the left overlay label.                     | `[0, -(windowWidth / 3)]` |
+| outputOverlayLabelLeftOpacityRange  | array           | Array defining the output opacity values for the left overlay label, corresponding to the input range.  | `[0, 1]`                  |
+| OverlayLabelRight                   | () => ReactNode | Component rendered as an overlay label for right swipes.                                                |                           |
+| OverlayLabelLeft                    | () => ReactNode | Component rendered as an overlay label for left swipes.                                                 |                           |
+| OverlayLabelTop                     | () => ReactNode | Component rendered as an overlay label for top swipes.                                                  |                           |
+| OverlayLabelBottom                  | () => ReactNode | Component rendered as an overlay label for bottom swipes.                                               |                           |
 
 ## Flip Animation Props
 
@@ -181,19 +223,19 @@ import { Swiper } from '@psync/rn-swiper';
     { index: 2, direction: 'top' },
   ]}
   renderCard={(item) => <Card item={item} />}
-/>
+/>;
 ```
 
 ## Swipe Animation Spring Configs (Animation Speed)
 
-| props                   | type         | description                                                    |
-| :---------------------- | :----------- | :------------------------------------------------------------- |
-| swipeBackXSpringConfig  | SpringConfig | Spring configuration for swipe back animation on the X-axis.   |
-| swipeBackYSpringConfig  | SpringConfig | Spring configuration for swipe back animation on the Y-axis.   |
-| swipeRightSpringConfig  | SpringConfig | Spring configuration for swipe right animation on the X-axis.  |
-| swipeLeftSpringConfig   | SpringConfig | Spring configuration for swipe left animation on the X-axis.   |
-| swipeTopSpringConfig    | SpringConfig | Spring configuration for swipe top animation on the Y-axis.    |
-| swipeBottomSpringConfig | SpringConfig | Spring configuration for swipe bottom animation on the Y-axis. |
+| props                   | type               | description                                                    |
+| :---------------------- | :----------------- | :------------------------------------------------------------- |
+| swipeBackXSpringConfig  | SwiperSpringConfig | Spring configuration for swipe back animation on the X-axis.   |
+| swipeBackYSpringConfig  | SwiperSpringConfig | Spring configuration for swipe back animation on the Y-axis.   |
+| swipeRightSpringConfig  | SwiperSpringConfig | Spring configuration for swipe right animation on the X-axis.  |
+| swipeLeftSpringConfig   | SwiperSpringConfig | Spring configuration for swipe left animation on the X-axis.   |
+| swipeTopSpringConfig    | SwiperSpringConfig | Spring configuration for swipe top animation on the Y-axis.    |
+| swipeBottomSpringConfig | SwiperSpringConfig | Spring configuration for swipe bottom animation on the Y-axis. |
 
 ### What is Spring Config?
 
@@ -513,7 +555,7 @@ type SwiperOptions<T> = {
    * Card data and render function
    */
   data: T[];
-  renderCard: (item: T, index: number) => JSX.Element;
+  renderCard: (item: T, index: number) => ReactNode;
   initialIndex?: number;
   prerenderItems?: number;
   cardStyle?: StyleProp<ViewStyle>;
@@ -521,7 +563,7 @@ type SwiperOptions<T> = {
   regularCardStyle?: StyleProp<ViewStyle>;
   overlayLabelContainerStyle?: StyleProp<ViewStyle>;
   keyExtractor?: (item: T, index: number) => string | number;
-  FlippedContent?: (item: T, index: number) => JSX.Element;
+  FlippedContent?: (item: T, index: number) => ReactNode;
   loop?: boolean;
   /*
    * Children components
@@ -561,10 +603,10 @@ type SwiperOptions<T> = {
   outputOverlayLabelTopOpacityRange?: number[];
   inputOverlayLabelBottomOpacityRange?: number[];
   outputOverlayLabelBottomOpacityRange?: number[];
-  OverlayLabelRight?: () => JSX.Element;
-  OverlayLabelLeft?: () => JSX.Element;
-  OverlayLabelTop?: () => JSX.Element;
-  OverlayLabelBottom?: () => JSX.Element;
+  OverlayLabelRight?: () => ReactNode;
+  OverlayLabelLeft?: () => ReactNode;
+  OverlayLabelTop?: () => ReactNode;
+  OverlayLabelBottom?: () => ReactNode;
   /*
    * Flip Animation Props
    */
@@ -573,12 +615,12 @@ type SwiperOptions<T> = {
   /*
    * Swipe Animation Spring Configs (Animation Speed)
    */
-  swipeBackXSpringConfig?: SpringConfig;
-  swipeBackYSpringConfig?: SpringConfig;
-  swipeRightSpringConfig?: SpringConfig;
-  swipeLeftSpringConfig?: SpringConfig;
-  swipeTopSpringConfig?: SpringConfig;
-  swipeBottomSpringConfig?: SpringConfig;
+  swipeBackXSpringConfig?: SwiperSpringConfig;
+  swipeBackYSpringConfig?: SwiperSpringConfig;
+  swipeRightSpringConfig?: SwiperSpringConfig;
+  swipeLeftSpringConfig?: SwiperSpringConfig;
+  swipeTopSpringConfig?: SwiperSpringConfig;
+  swipeBottomSpringConfig?: SwiperSpringConfig;
   /*
    * Swipe Velocity Threshold
    */

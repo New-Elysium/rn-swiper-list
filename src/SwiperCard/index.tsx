@@ -1,13 +1,17 @@
-import React, {
-  forwardRef,
+import {
   memo,
   useCallback,
   useImperativeHandle,
-  useMemo,
   type PropsWithChildren,
+  type Ref,
 } from 'react';
-import { useWindowDimensions, StyleSheet } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { StyleSheet, useWindowDimensions } from 'react-native';
+import {
+  GestureDetector,
+  useCompetingGestures,
+  usePanGesture,
+  useTapGesture,
+} from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
   interpolate,
@@ -18,532 +22,294 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import type {
-  SwiperCardOptions,
-  SwiperSwipeDirection,
-} from '../types';
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
-import OverlayLabel from './OverlayLabel';
 import type { SwiperCardInternalRefType } from '../internalTypes';
+import type { SwiperCardOptions, SwiperSwipeDirection } from '../types';
+import { getSwipeTranslation, resolveSwipeDirection } from '../utils';
+import OverlayLabel from './OverlayLabel';
 
 const EMPTY_RANGE: number[] = [];
 
-const getRestoredTranslateX = (
-  direction: SwiperSwipeDirection | undefined,
-  maxCardTranslation: number
-) => {
-  if (direction === 'right') {
-    return maxCardTranslation;
-  }
-
-  if (direction === 'left') {
-    return -maxCardTranslation;
-  }
-
-  return 0;
+type SwiperCardProps<T> = PropsWithChildren<SwiperCardOptions<T>> & {
+  ref?: Ref<SwiperCardInternalRefType>;
 };
 
-const getRestoredTranslateY = (
-  direction: SwiperSwipeDirection | undefined,
-  maxCardTranslationY: number
-) => {
-  if (direction === 'bottom') {
-    return maxCardTranslationY;
-  }
-
-  if (direction === 'top') {
-    return -maxCardTranslationY;
-  }
-
-  return 0;
-};
-
-const SwipeableCard = forwardRef(function SwipeableCard<T>(
-  props: PropsWithChildren<SwiperCardOptions<T>>,
-  ref: React.ForwardedRef<SwiperCardInternalRefType>
-) {
-  const {
-    index,
-    item,
-    activeIndex,
-    prerenderItems = 5,
-    onSwipeLeft,
-    onSwipeRight,
-    onSwipeTop,
-    onSwipeBottom,
-    cardStyle,
-    flippedCardStyle,
-    regularCardStyle,
-    children,
-    disableRightSwipe,
-    disableLeftSwipe,
-    disableTopSwipe,
-    disableBottomSwipe,
-    translateXRange,
-    translateYRange,
-    rotateInputRange,
-    rotateOutputRange,
-    inputOverlayLabelRightOpacityRange,
-    outputOverlayLabelRightOpacityRange,
-    inputOverlayLabelLeftOpacityRange,
-    outputOverlayLabelLeftOpacityRange,
-    inputOverlayLabelTopOpacityRange,
-    outputOverlayLabelTopOpacityRange,
-    inputOverlayLabelBottomOpacityRange,
-    outputOverlayLabelBottomOpacityRange,
-    OverlayLabelRight,
-    OverlayLabelLeft,
-    OverlayLabelTop,
-    OverlayLabelBottom,
-    onSwipeStart,
-    onSwipeActive,
-    onSwipeEnd,
-    swipeBackXSpringConfig,
-    swipeBackYSpringConfig,
-    swipeRightSpringConfig,
-    swipeLeftSpringConfig,
-    swipeTopSpringConfig,
-    swipeBottomSpringConfig,
-    onPress,
-    FlippedContent,
-    direction = 'y',
-    flipDuration = 2500,
-    overlayLabelContainerStyle,
-    swipeVelocityThreshold,
-    restoredSwipeDirection,
-  } = props;
+function SwiperCard<T>({
+  ref,
+  index,
+  item,
+  activeIndex,
+  prerenderItems = 5,
+  onSwipeLeft,
+  onSwipeRight,
+  onSwipeTop,
+  onSwipeBottom,
+  cardStyle,
+  flippedCardStyle,
+  regularCardStyle,
+  children,
+  disableRightSwipe,
+  disableLeftSwipe,
+  disableTopSwipe,
+  disableBottomSwipe,
+  translateXRange = EMPTY_RANGE,
+  translateYRange = EMPTY_RANGE,
+  rotateInputRange = EMPTY_RANGE,
+  rotateOutputRange = EMPTY_RANGE,
+  inputOverlayLabelRightOpacityRange,
+  outputOverlayLabelRightOpacityRange,
+  inputOverlayLabelLeftOpacityRange,
+  outputOverlayLabelLeftOpacityRange,
+  inputOverlayLabelTopOpacityRange,
+  outputOverlayLabelTopOpacityRange,
+  inputOverlayLabelBottomOpacityRange,
+  outputOverlayLabelBottomOpacityRange,
+  OverlayLabelRight,
+  OverlayLabelLeft,
+  OverlayLabelTop,
+  OverlayLabelBottom,
+  onSwipeStart,
+  onSwipeActive,
+  onSwipeEnd,
+  swipeBackXSpringConfig,
+  swipeBackYSpringConfig,
+  swipeRightSpringConfig,
+  swipeLeftSpringConfig,
+  swipeTopSpringConfig,
+  swipeBottomSpringConfig,
+  onPress,
+  FlippedContent,
+  direction = 'y',
+  flipDuration = 500,
+  overlayLabelContainerStyle,
+  swipeVelocityThreshold,
+  restoredSwipeDirection,
+}: SwiperCardProps<T>) {
   const { width, height } = useWindowDimensions();
   const maxCardTranslation = width * 1.5;
   const maxCardTranslationY = height * 1.5;
-  const translateX = useSharedValue(
-    getRestoredTranslateX(restoredSwipeDirection, maxCardTranslation)
+
+  const restoredTranslation = getSwipeTranslation(
+    restoredSwipeDirection,
+    maxCardTranslation,
+    maxCardTranslationY
   );
-  const translateY = useSharedValue(
-    getRestoredTranslateY(restoredSwipeDirection, maxCardTranslationY)
-  );
+  const translateX = useSharedValue(restoredTranslation.x);
+  const translateY = useSharedValue(restoredTranslation.y);
   const isFlipped = useSharedValue(false);
-  // Check if FlippedContent is defined and not null
-  const hasFlippedContent =
-    FlippedContent !== undefined && FlippedContent !== null;
+  // Whether the current pan started while this card was the active one.
+  const isDragging = useSharedValue(false);
+  const hasFlippedContent = FlippedContent != null;
 
-  // Don't access activeIndex.value during render - use 0 as initial value
-  // These will be updated in gesture handlers
-  const nextActiveIndex = useSharedValue(0);
+  /**
+   * Animate this card offscreen in `swipeDirection`. Runs on the UI thread so
+   * gesture-driven swipes start in the same frame the finger is released.
+   */
+  const swipeTo = useCallback(
+    (
+      swipeDirection: SwiperSwipeDirection,
+      shouldUpdateActiveIndex: boolean
+    ) => {
+      'worklet';
+      const target = getSwipeTranslation(
+        swipeDirection,
+        maxCardTranslation,
+        maxCardTranslationY
+      );
+      const isHorizontal =
+        swipeDirection === 'left' || swipeDirection === 'right';
+      const springConfig =
+        swipeDirection === 'right'
+          ? swipeRightSpringConfig
+          : swipeDirection === 'left'
+            ? swipeLeftSpringConfig
+            : swipeDirection === 'top'
+              ? swipeTopSpringConfig
+              : swipeBottomSpringConfig;
+      const callback =
+        swipeDirection === 'right'
+          ? onSwipeRight
+          : swipeDirection === 'left'
+            ? onSwipeLeft
+            : swipeDirection === 'top'
+              ? onSwipeTop
+              : onSwipeBottom;
 
-  const swipeRight = useCallback(
-    (shouldUpdateActiveIndex = true) => {
-      scheduleOnUI(() => {
-        translateX.value = withSpring(
-          maxCardTranslation,
-          {
-            ...swipeRightSpringConfig,
-            reduceMotion: ReduceMotion.Never,
-          },
-          () => {
-            if (onSwipeRight) scheduleOnRN(onSwipeRight, index);
-          }
-        );
-        if (shouldUpdateActiveIndex) {
-          activeIndex.value++;
+      const animation = withSpring(
+        isHorizontal ? target.x : target.y,
+        { ...springConfig, reduceMotion: ReduceMotion.Never },
+        () => {
+          if (callback) scheduleOnRN(callback, index);
         }
-      });
+      );
+      if (isHorizontal) {
+        translateX.set(animation);
+      } else {
+        translateY.set(animation);
+      }
+
+      if (shouldUpdateActiveIndex) {
+        activeIndex.set(activeIndex.get() + 1);
+      }
     },
     [
       index,
       activeIndex,
       maxCardTranslation,
+      maxCardTranslationY,
+      translateX,
+      translateY,
       onSwipeRight,
-      translateX,
-      swipeRightSpringConfig,
-    ]
-  );
-
-  const swipeLeft = useCallback(
-    (shouldUpdateActiveIndex = true) => {
-      scheduleOnUI(() => {
-        translateX.value = withSpring(
-          -maxCardTranslation,
-          {
-            ...swipeLeftSpringConfig,
-            reduceMotion: ReduceMotion.Never,
-          },
-          () => {
-            if (onSwipeLeft) scheduleOnRN(onSwipeLeft, index);
-          }
-        );
-        if (shouldUpdateActiveIndex) {
-          activeIndex.value++;
-        }
-      });
-    },
-    [
-      index,
-      activeIndex,
-      maxCardTranslation,
       onSwipeLeft,
-      translateX,
-      swipeLeftSpringConfig,
-    ]
-  );
-
-  const swipeTop = useCallback(
-    (shouldUpdateActiveIndex = true) => {
-      scheduleOnUI(() => {
-        translateY.value = withSpring(
-          -maxCardTranslationY,
-          {
-            ...swipeTopSpringConfig,
-            reduceMotion: ReduceMotion.Never,
-          },
-          () => {
-            if (onSwipeTop) scheduleOnRN(onSwipeTop, index);
-          }
-        );
-        if (shouldUpdateActiveIndex) {
-          activeIndex.value++;
-        }
-      });
-    },
-    [
-      index,
-      activeIndex,
-      maxCardTranslationY,
       onSwipeTop,
-      translateY,
-      swipeTopSpringConfig,
-    ]
-  );
-
-  const swipeBottom = useCallback(
-    (shouldUpdateActiveIndex = true) => {
-      scheduleOnUI(() => {
-        translateY.value = withSpring(
-          maxCardTranslationY,
-          {
-            ...swipeBottomSpringConfig,
-            reduceMotion: ReduceMotion.Never,
-          },
-          () => {
-            if (onSwipeBottom) scheduleOnRN(onSwipeBottom, index);
-          }
-        );
-        if (shouldUpdateActiveIndex) {
-          activeIndex.value++;
-        }
-      });
-    },
-    [
-      index,
-      activeIndex,
-      maxCardTranslationY,
       onSwipeBottom,
-      translateY,
+      swipeRightSpringConfig,
+      swipeLeftSpringConfig,
+      swipeTopSpringConfig,
       swipeBottomSpringConfig,
     ]
   );
 
-  const swipeBack = useCallback(() => {
-    scheduleOnUI(() => {
+  /** Spring the card to `(x, y)`, cancelling any running animation. */
+  const springTo = useCallback(
+    (x: number, y: number) => {
+      'worklet';
       cancelAnimation(translateX);
       cancelAnimation(translateY);
-      translateX.value = withSpring(0, {
-        ...swipeBackXSpringConfig,
-        reduceMotion: ReduceMotion.Never,
-      });
-      translateY.value = withSpring(0, {
-        ...swipeBackYSpringConfig,
-        reduceMotion: ReduceMotion.Never,
-      });
-    });
-  }, [translateX, translateY, swipeBackXSpringConfig, swipeBackYSpringConfig]);
-
-  const resetAfterLoop = useCallback(() => {
-    const restoredTranslateX = getRestoredTranslateX(
-      restoredSwipeDirection,
-      maxCardTranslation
-    );
-    const restoredTranslateY = getRestoredTranslateY(
-      restoredSwipeDirection,
-      maxCardTranslationY
-    );
-
-    scheduleOnUI(() => {
-      cancelAnimation(translateX);
-      cancelAnimation(translateY);
-      translateX.value = withSpring(restoredTranslateX, {
-        ...swipeBackXSpringConfig,
-        reduceMotion: ReduceMotion.Never,
-      });
-      translateY.value = withSpring(restoredTranslateY, {
-        ...swipeBackYSpringConfig,
-        reduceMotion: ReduceMotion.Never,
-      });
-    });
-  }, [
-    restoredSwipeDirection,
-    maxCardTranslation,
-    maxCardTranslationY,
-    translateX,
-    translateY,
-    swipeBackXSpringConfig,
-    swipeBackYSpringConfig,
-  ]);
-
-  const flipCard = useCallback(() => {
-    if (hasFlippedContent) {
-      isFlipped.value = !isFlipped.value;
-      return;
-    }
-  }, [isFlipped, hasFlippedContent]);
-
-  useImperativeHandle(ref, () => {
-    return {
-      swipeLeft,
-      swipeRight,
-      swipeBack,
-      swipeTop,
-      swipeBottom,
-      flipCard,
-      resetAfterLoop,
-    };
-  }, [
-    swipeLeft,
-    swipeRight,
-    swipeBack,
-    swipeTop,
-    swipeBottom,
-    flipCard,
-    resetAfterLoop,
-  ]);
-
-  const inputRangeX = translateXRange ?? EMPTY_RANGE;
-  const inputRangeY = translateYRange ?? EMPTY_RANGE;
-  const rotateX = useDerivedValue(() => {
-    return interpolate(
-      translateX.value,
-      rotateInputRange ?? [],
-      rotateOutputRange ?? [],
-      'clamp'
-    );
-  });
-
-  const tap = useMemo(
-    () =>
-      Gesture.Tap().onEnd((_event, success) => {
-        if (success && onPress) {
-          scheduleOnRN(onPress);
-        }
-      }),
-    [onPress]
+      translateX.set(
+        withSpring(x, {
+          ...swipeBackXSpringConfig,
+          reduceMotion: ReduceMotion.Never,
+        })
+      );
+      translateY.set(
+        withSpring(y, {
+          ...swipeBackYSpringConfig,
+          reduceMotion: ReduceMotion.Never,
+        })
+      );
+    },
+    [translateX, translateY, swipeBackXSpringConfig, swipeBackYSpringConfig]
   );
 
-  const pan = useMemo(
-    () =>
-      Gesture.Pan()
-        .onBegin(() => {
-          nextActiveIndex.value = Math.floor(activeIndex.value);
-          if (onSwipeStart) scheduleOnRN(onSwipeStart);
-        })
-        .onUpdate((event) => {
-          // Use activeIndex.value directly in worklet context
-          const currentActive = Math.floor(activeIndex.value);
-          if (currentActive !== index) return;
-          if (onSwipeActive) scheduleOnRN(onSwipeActive);
-
-          translateX.value = event.translationX;
-          translateY.value = event.translationY;
-
-          if (height / 3 < Math.abs(event.translationY)) {
-            nextActiveIndex.value = interpolate(
-              translateY.value,
-              inputRangeY,
-              [currentActive + 1, currentActive, currentActive + 1],
-              'clamp'
-            );
-            return;
-          }
-
-          nextActiveIndex.value = interpolate(
-            translateX.value,
-            inputRangeX,
-            [currentActive + 1, currentActive, currentActive + 1],
-            'clamp'
-          );
-        })
-        .onFinalize((event) => {
-          const currentActive = Math.floor(activeIndex.value);
-          if (currentActive !== index) return;
-          if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
-          if (nextActiveIndex.value === activeIndex.value + 1) {
-            const sign = Math.sign(event.translationX);
-            const signY = Math.sign(event.translationY);
-            const signPositionY = Number.isInteger(
-              interpolate(
-                translateY.value,
-                inputRangeY,
-                [currentActive + 1, currentActive, currentActive + 1],
-                'clamp'
-              )
-            );
-            if (signPositionY) {
-              if (signY === -1 && !disableTopSwipe) {
-                scheduleOnRN(swipeTop);
-                return;
-              }
-              if (signY === 1 && !disableBottomSwipe) {
-                scheduleOnRN(swipeBottom);
-                return;
-              }
-            }
-
-            if (!signPositionY) {
-              if (sign === 1 && !disableRightSwipe) {
-                scheduleOnRN(swipeRight);
-                return;
-              }
-              if (sign === -1 && !disableLeftSwipe) {
-                scheduleOnRN(swipeLeft);
-                return;
-              }
-            }
-          }
-        })
-        .onFinalize((event) => {
-          const currentActive = Math.floor(activeIndex.value);
-          if (currentActive !== index) return;
-          if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
-
-          if (swipeVelocityThreshold !== undefined) {
-            if (Math.abs(event.velocityX) > swipeVelocityThreshold) {
-              const sign = Math.sign(event.velocityX);
-              if (sign === -1 && !disableLeftSwipe) {
-                scheduleOnRN(swipeLeft);
-                return;
-              }
-              if (sign === 1 && !disableRightSwipe) {
-                scheduleOnRN(swipeRight);
-                return;
-              }
-            }
-
-            if (Math.abs(event.velocityY) > swipeVelocityThreshold) {
-              const sign = Math.sign(event.velocityY);
-              if (sign === -1 && !disableTopSwipe) {
-                scheduleOnRN(swipeTop);
-                return;
-              }
-              if (sign === 1 && !disableBottomSwipe) {
-                scheduleOnRN(swipeBottom);
-                return;
-              }
-            }
-          }
-
-          if (nextActiveIndex.value === activeIndex.value + 1) {
-            const sign = Math.sign(event.translationX);
-            const signY = Math.sign(event.translationY);
-            const signPositionY = Number.isInteger(
-              interpolate(
-                translateY.value,
-                inputRangeY,
-                [currentActive + 1, currentActive, currentActive + 1],
-                'clamp'
-              )
-            );
-
-            if (signPositionY) {
-              if (signY === -1 && !disableTopSwipe) {
-                scheduleOnRN(swipeTop);
-                return;
-              }
-              if (signY === 1 && !disableBottomSwipe) {
-                scheduleOnRN(swipeBottom);
-                return;
-              }
-            }
-
-            if (!signPositionY) {
-              if (sign === 1 && !disableRightSwipe) {
-                scheduleOnRN(swipeRight);
-                return;
-              }
-              if (sign === -1 && !disableLeftSwipe) {
-                scheduleOnRN(swipeLeft);
-                return;
-              }
-            }
-          }
-          translateX.value = withSpring(0, {
-            ...swipeBackXSpringConfig,
-            reduceMotion: ReduceMotion.Never,
-          });
-          translateY.value = withSpring(0, {
-            ...swipeBackYSpringConfig,
-            reduceMotion: ReduceMotion.Never,
-          });
-        }),
+  useImperativeHandle(
+    ref,
+    () => ({
+      swipeRight: (shouldUpdateActiveIndex = true) =>
+        scheduleOnUI(swipeTo, 'right', shouldUpdateActiveIndex),
+      swipeLeft: (shouldUpdateActiveIndex = true) =>
+        scheduleOnUI(swipeTo, 'left', shouldUpdateActiveIndex),
+      swipeTop: (shouldUpdateActiveIndex = true) =>
+        scheduleOnUI(swipeTo, 'top', shouldUpdateActiveIndex),
+      swipeBottom: (shouldUpdateActiveIndex = true) =>
+        scheduleOnUI(swipeTo, 'bottom', shouldUpdateActiveIndex),
+      swipeBack: () => scheduleOnUI(springTo, 0, 0),
+      resetAfterLoop: () =>
+        scheduleOnUI(springTo, restoredTranslation.x, restoredTranslation.y),
+      flipCard: () => {
+        if (hasFlippedContent) {
+          isFlipped.set(!isFlipped.get());
+        }
+      },
+    }),
     [
-      activeIndex,
-      disableBottomSwipe,
-      disableLeftSwipe,
-      disableRightSwipe,
-      disableTopSwipe,
-      height,
-      index,
-      inputRangeX,
-      inputRangeY,
-      nextActiveIndex,
-      onSwipeActive,
-      onSwipeEnd,
-      onSwipeStart,
-      swipeBackXSpringConfig,
-      swipeBackYSpringConfig,
-      swipeBottom,
-      swipeLeft,
-      swipeRight,
-      swipeTop,
-      swipeVelocityThreshold,
-      translateX,
-      translateY,
+      swipeTo,
+      springTo,
+      restoredTranslation.x,
+      restoredTranslation.y,
+      hasFlippedContent,
+      isFlipped,
     ]
   );
 
-  const rCardStyle = useAnimatedStyle(() => {
-    // Handle visibility and rendering based on prerenderItems using animated values
-    const currentActive = Math.floor(activeIndex.value);
-    const shouldRender =
-      index < currentActive + prerenderItems && index >= currentActive - 1;
-    const indexDiff = index - currentActive;
+  const rotateX = useDerivedValue(() =>
+    interpolate(translateX.get(), rotateInputRange, rotateOutputRange, 'clamp')
+  );
 
-    // Use raw values for opacity and scale to prevent flash on mount
-    // withTiming was causing animation from default values when cards first mount
-    const opacity = shouldRender && indexDiff < prerenderItems ? 1 : 0;
+  const tap = useTapGesture({
+    testID: `swiper-card-tap-${index}`,
+    onDeactivate: (event) => {
+      if (!event.canceled && onPress) {
+        scheduleOnRN(onPress);
+      }
+    },
+  });
+
+  const pan = usePanGesture({
+    testID: `swiper-card-pan-${index}`,
+    onBegin: () => {
+      const isActive = Math.floor(activeIndex.get()) === index;
+      isDragging.set(isActive);
+      if (isActive && onSwipeStart) scheduleOnRN(onSwipeStart);
+    },
+    onUpdate: (event) => {
+      if (!isDragging.get()) return;
+      if (onSwipeActive) scheduleOnRN(onSwipeActive);
+
+      translateX.set(event.translationX);
+      translateY.set(event.translationY);
+    },
+    onDeactivate: (event) => {
+      if (!isDragging.get()) return;
+
+      const swipeDirection = event.canceled
+        ? null
+        : resolveSwipeDirection({
+            translationX: event.translationX,
+            translationY: event.translationY,
+            velocityX: event.velocityX,
+            velocityY: event.velocityY,
+            translateXRange,
+            translateYRange,
+            velocityThreshold: swipeVelocityThreshold,
+            disabled: {
+              left: disableLeftSwipe,
+              right: disableRightSwipe,
+              top: disableTopSwipe,
+              bottom: disableBottomSwipe,
+            },
+          });
+
+      if (swipeDirection) {
+        swipeTo(swipeDirection, true);
+      } else {
+        springTo(0, 0);
+      }
+    },
+    onFinalize: () => {
+      if (!isDragging.get()) return;
+      isDragging.set(false);
+      if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
+    },
+  });
+
+  const gesture = useCompetingGestures(tap, pan);
+
+  const rCardStyle = useAnimatedStyle(() => {
+    const currentActive = Math.floor(activeIndex.get());
+    const indexDiff = index - currentActive;
+    const shouldRender = indexDiff >= -1 && indexDiff < prerenderItems;
 
     // Clamp indexDiff to minimum 0 to prevent scale > 1 for swiped cards
-    const clampedIndexDiff = Math.max(0, indexDiff);
-    const scale = 1 - 0.07 * clampedIndexDiff;
+    const scale = 1 - 0.07 * Math.max(0, indexDiff);
 
     return {
-      opacity,
+      opacity: shouldRender ? 1 : 0,
       position: 'absolute',
       zIndex: -index,
       transform: [
-        { rotate: `${rotateX.value}rad` },
+        { rotate: `${rotateX.get()}rad` },
         { scale },
-        {
-          translateX: translateX.value,
-        },
-        {
-          translateY: translateY.value,
-        },
+        { translateX: translateX.get() },
+        { translateY: translateY.get() },
       ],
     };
   });
 
   const isDirectionX = direction === 'x';
   const regularCardAnimatedStyle = useAnimatedStyle(() => {
-    const spinValue = interpolate(Number(isFlipped.value), [0, 1], [0, 180]);
+    const spinValue = interpolate(Number(isFlipped.get()), [0, 1], [0, 180]);
     const rotateValue = withTiming(`${spinValue}deg`, {
       duration: flipDuration,
       reduceMotion: ReduceMotion.Never,
@@ -555,12 +321,12 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
       ],
       position: 'absolute',
       backfaceVisibility: 'hidden',
-      zIndex: isFlipped.value ? 1 : 2,
+      zIndex: isFlipped.get() ? 1 : 2,
     };
   });
 
   const flippedCardAnimatedStyle = useAnimatedStyle(() => {
-    const spinValue = interpolate(Number(isFlipped.value), [0, 1], [180, 360]);
+    const spinValue = interpolate(Number(isFlipped.get()), [0, 1], [180, 360]);
     const rotateValue = withTiming(`${spinValue}deg`, {
       duration: flipDuration,
       reduceMotion: ReduceMotion.Never,
@@ -571,14 +337,12 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
         isDirectionX ? { rotateX: rotateValue } : { rotateY: rotateValue },
       ],
       backfaceVisibility: 'hidden',
-      zIndex: isFlipped.value ? 2 : 1,
+      zIndex: isFlipped.get() ? 2 : 1,
     };
   });
 
-  const composed = useMemo(() => Gesture.Race(tap, pan), [tap, pan]);
-
   return (
-    <GestureDetector gesture={composed}>
+    <GestureDetector gesture={gesture}>
       <Animated.View style={[rCardStyle, cardStyle]}>
         {OverlayLabelLeft && (
           <OverlayLabel
@@ -637,6 +401,6 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
       </Animated.View>
     </GestureDetector>
   );
-});
+}
 
-export default memo(SwipeableCard) as typeof SwipeableCard;
+export default memo(SwiperCard) as typeof SwiperCard;

@@ -1,4 +1,4 @@
-import { type JSX, type PropsWithChildren } from 'react';
+import type { ReactNode } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   interpolate,
@@ -6,32 +6,27 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-type Props = PropsWithChildren<{
+const EMPTY_RANGE: number[] = [];
+
+type Props = {
   inputRange?: number[];
   outputRange?: number[];
-  Component: () => JSX.Element;
+  Component: () => ReactNode;
   opacityValue: SharedValue<number>;
   overlayLabelContainerStyle?: StyleProp<ViewStyle>;
-}>;
+};
 
 const OverlayLabel = ({
-  inputRange,
-  outputRange,
+  inputRange = EMPTY_RANGE,
+  outputRange = EMPTY_RANGE,
   Component,
   opacityValue,
   overlayLabelContainerStyle,
 }: Props) => {
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: interpolate(
-        opacityValue.value,
-        inputRange ?? [],
-        outputRange ?? [],
-        'clamp'
-      ),
-      zIndex: 3,
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(opacityValue.get(), inputRange, outputRange, 'clamp'),
+    zIndex: 3,
+  }));
 
   return (
     <Animated.View

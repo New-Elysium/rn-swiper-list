@@ -1,35 +1,31 @@
-import React, {
-  useImperativeHandle,
-  useMemo,
-  useState,
-  type ForwardedRef,
-} from 'react';
+import { useCallback, useImperativeHandle, useMemo, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { useAnimatedReaction } from 'react-native-reanimated';
-import { Dimensions } from 'react-native';
-import type {
-  SwiperCardOptions,
-  SwiperCardRefType,
-  SwiperOptions,
-  SwiperSwipeDirection,
-} from './types';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import useSwipeControls from './hooks/useSwipeControls';
 import SwiperCard from './SwiperCard';
-import type { SwiperCardInternalRefType } from './internalTypes';
-import type { SpringConfig } from 'react-native-reanimated/lib/typescript/animation/spring';
+import type { SwiperProps, SwiperSpringConfig } from './types';
+import {
+  buildRestoredSwipeDirections,
+  clampInitialIndex,
+  getAdjustedPrerenderItems,
+  getFirstRenderedIndex,
+  getVirtualizedRenderRange,
+} from './utils';
 
-const { width: windowWidth, height: windowHeight } = Dimensions.get('screen');
-
-const SWIPE_SPRING_CONFIG: SpringConfig = {
+const SWIPE_SPRING_CONFIG: SwiperSpringConfig = {
   damping: 20,
   stiffness: 50,
   mass: 1,
   overshootClamping: true,
 };
 
-const Swiper = <T,>(
-  {
+const OVERLAY_OPACITY_OUTPUT_RANGE = [0, 1];
+
+function Swiper<T>(props: SwiperProps<T>) {
+  const {
+    ref,
     data,
     renderCard,
     prerenderItems = Math.max(data.length - 1, 1),
@@ -46,18 +42,18 @@ const Swiper = <T,>(
     disableLeftSwipe,
     disableTopSwipe,
     disableBottomSwipe,
-    translateXRange = [-windowWidth / 3, 0, windowWidth / 3],
-    translateYRange = [-windowHeight / 3, 0, windowHeight / 3],
-    rotateInputRange = [-windowWidth / 3, 0, windowWidth / 3],
-    rotateOutputRange = [-Math.PI / 20, 0, Math.PI / 20],
-    inputOverlayLabelRightOpacityRange = [0, windowWidth / 3],
-    outputOverlayLabelRightOpacityRange = [0, 1],
-    inputOverlayLabelLeftOpacityRange = [0, -(windowWidth / 3)],
-    outputOverlayLabelLeftOpacityRange = [0, 1],
-    inputOverlayLabelTopOpacityRange = [0, -(windowHeight / 3)],
-    outputOverlayLabelTopOpacityRange = [0, 1],
-    inputOverlayLabelBottomOpacityRange = [0, windowHeight / 3],
-    outputOverlayLabelBottomOpacityRange = [0, 1],
+    translateXRange: translateXRangeProp,
+    translateYRange: translateYRangeProp,
+    rotateInputRange: rotateInputRangeProp,
+    rotateOutputRange: rotateOutputRangeProp,
+    inputOverlayLabelRightOpacityRange: inputRightRangeProp,
+    outputOverlayLabelRightOpacityRange = OVERLAY_OPACITY_OUTPUT_RANGE,
+    inputOverlayLabelLeftOpacityRange: inputLeftRangeProp,
+    outputOverlayLabelLeftOpacityRange = OVERLAY_OPACITY_OUTPUT_RANGE,
+    inputOverlayLabelTopOpacityRange: inputTopRangeProp,
+    outputOverlayLabelTopOpacityRange = OVERLAY_OPACITY_OUTPUT_RANGE,
+    inputOverlayLabelBottomOpacityRange: inputBottomRangeProp,
+    outputOverlayLabelBottomOpacityRange = OVERLAY_OPACITY_OUTPUT_RANGE,
     OverlayLabelRight,
     OverlayLabelLeft,
     OverlayLabelTop,
@@ -82,67 +78,82 @@ const Swiper = <T,>(
     initialIndex = 0,
     restoredSwipes,
     virtualizeCards = false,
-  }: SwiperOptions<T>,
-  ref: ForwardedRef<SwiperCardRefType>
-) => {
-  // Clamp initialIndex to valid range to prevent out-of-bounds access
-  const clampedInitialIndex = Math.max(
-    0,
-    Math.min(initialIndex, data.length - 1)
+  } = props;
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  // Default ranges follow the window size; memoized so cards don't re-render.
+  const defaultRanges = useMemo(() => {
+    const thirdWidth = windowWidth / 3;
+    const thirdHeight = windowHeight / 3;
+    return {
+      translateX: [-thirdWidth, 0, thirdWidth],
+      translateY: [-thirdHeight, 0, thirdHeight],
+      rotateInput: [-thirdWidth, 0, thirdWidth],
+      rotateOutput: [-Math.PI / 20, 0, Math.PI / 20],
+      overlayRight: [0, thirdWidth],
+      overlayLeft: [0, -thirdWidth],
+      overlayTop: [0, -thirdHeight],
+      overlayBottom: [0, thirdHeight],
+    };
+  }, [windowWidth, windowHeight]);
+
+  const translateXRange = translateXRangeProp ?? defaultRanges.translateX;
+  const translateYRange = translateYRangeProp ?? defaultRanges.translateY;
+  const rotateInputRange = rotateInputRangeProp ?? defaultRanges.rotateInput;
+  const rotateOutputRange = rotateOutputRangeProp ?? defaultRanges.rotateOutput;
+  const inputOverlayLabelRightOpacityRange =
+    inputRightRangeProp ?? defaultRanges.overlayRight;
+  const inputOverlayLabelLeftOpacityRange =
+    inputLeftRangeProp ?? defaultRanges.overlayLeft;
+  const inputOverlayLabelTopOpacityRange =
+    inputTopRangeProp ?? defaultRanges.overlayTop;
+  const inputOverlayLabelBottomOpacityRange =
+    inputBottomRangeProp ?? defaultRanges.overlayBottom;
+
+  const dataLength = data.length;
+  const clampedInitialIndex = clampInitialIndex(initialIndex, dataLength);
+
+  const restoredSwipeDirections = useMemo(
+    () =>
+      buildRestoredSwipeDirections(
+        restoredSwipes,
+        clampedInitialIndex,
+        dataLength
+      ),
+    [restoredSwipes, clampedInitialIndex, dataLength]
   );
 
-  // Build a lookup of restored swipe directions for cards before initialIndex.
-  // Each entry uses the original data index and a generic direction.
-  const restoredSwipeDirections = useMemo(() => {
-    const directions = new Map<number, SwiperSwipeDirection>();
+  const firstRenderedIndex = useMemo(
+    () => getFirstRenderedIndex(restoredSwipeDirections, clampedInitialIndex),
+    [restoredSwipeDirections, clampedInitialIndex]
+  );
 
-    restoredSwipes?.forEach(({ index, direction: swipeDirection }) => {
-      if (
-        Number.isInteger(index) &&
-        index >= 0 &&
-        index < clampedInitialIndex &&
-        index < data.length
-      ) {
-        directions.set(index, swipeDirection);
-      }
-    });
-
-    return directions;
-  }, [restoredSwipes, clampedInitialIndex, data.length]);
-
-  // Earliest card index that must be rendered: walk backwards from initialIndex
-  // through the continuous restored sequence.
-  const firstRenderedIndex = useMemo(() => {
-    let restoredIndex = clampedInitialIndex - 1;
-
-    while (restoredIndex >= 0 && restoredSwipeDirections.has(restoredIndex)) {
-      restoredIndex--;
-    }
-
-    return restoredIndex + 1;
-  }, [restoredSwipeDirections, clampedInitialIndex]);
-
-  // Calculate prerenderItems based on data length from active index
-  const adjustedPrerenderItems = Math.min(
+  const adjustedPrerenderItems = getAdjustedPrerenderItems(
     prerenderItems,
-    Math.max(data.length - clampedInitialIndex - 1, 1)
+    dataLength,
+    clampedInitialIndex
   );
 
-  // Buffer for swipeBack - keeps cards behind active for undo functionality
-  const SWIPE_BACK_BUFFER = 3;
+  // Range of cards to mount when virtualizeCards is enabled
+  const [renderRange, setRenderRange] = useState(() =>
+    getVirtualizedRenderRange(
+      clampedInitialIndex,
+      adjustedPrerenderItems,
+      dataLength,
+      firstRenderedIndex
+    )
+  );
 
-  // Track the range of cards to render when virtualizeCards is enabled
-  const [renderRange, setRenderRange] = useState(() => ({
-    start: clampedInitialIndex,
-    end: Math.min(
-      clampedInitialIndex + adjustedPrerenderItems + 1,
-      data.length
-    ),
-  }));
+  const updateRenderRange = useCallback((start: number, end: number) => {
+    setRenderRange((prev) =>
+      prev.start === start && prev.end === end ? prev : { start, end }
+    );
+  }, []);
 
   const {
     activeIndex,
     refs,
+    resetAfterLoop,
     swipeRight,
     swipeLeft,
     swipeBack,
@@ -151,94 +162,76 @@ const Swiper = <T,>(
     flipCard,
   } = useSwipeControls(data, loop, clampedInitialIndex, firstRenderedIndex);
 
-  useImperativeHandle(ref, () => {
-    return {
+  useImperativeHandle(
+    ref,
+    () => ({
       swipeLeft,
       swipeRight,
       swipeBack,
       swipeTop,
       swipeBottom,
       flipCard,
-    };
-  }, [swipeLeft, swipeRight, swipeBack, swipeTop, swipeBottom, flipCard]);
-
-  useAnimatedReaction(
-    () => {
-      return activeIndex.value >= data.length;
-    },
-    (isSwipingFinished: boolean) => {
-      if (isSwipingFinished && onSwipedAll) {
-        scheduleOnRN(onSwipedAll);
-      }
-    },
-    [data.length]
+    }),
+    [swipeLeft, swipeRight, swipeBack, swipeTop, swipeBottom, flipCard]
   );
 
-  //Listen to the activeIndex value
+  // Every card swiped: loop back to the start, or notify onSwipedAll.
+  // Handles gesture-driven and imperative swipes alike.
   useAnimatedReaction(
-    () => {
-      return activeIndex.value;
-    },
+    () => activeIndex.get() >= dataLength,
+    (isSwipingFinished, wasSwipingFinished) => {
+      if (!isSwipingFinished || wasSwipingFinished) return;
+      if (loop) {
+        scheduleOnRN(resetAfterLoop);
+      } else if (onSwipedAll) {
+        scheduleOnRN(onSwipedAll);
+      }
+    }
+  );
+
+  useAnimatedReaction(
+    () => activeIndex.get(),
     (currentValue, previousValue) => {
       if (currentValue !== previousValue && onIndexChange) {
         scheduleOnRN(onIndexChange, currentValue);
       }
-    },
-    []
+    }
   );
 
-  // Update render range when activeIndex changes (only used when virtualizeCards is true)
   useAnimatedReaction(
-    () => Math.floor(activeIndex.value),
+    () => Math.floor(activeIndex.get()),
     (currentActive) => {
       if (!virtualizeCards) return;
-
-      // Calculate new render range with buffer for swipeBack
-      const newStart = Math.max(currentActive - SWIPE_BACK_BUFFER, 0);
-      const newEnd = Math.min(
-        currentActive + adjustedPrerenderItems + 1,
-        data.length
+      const { start, end } = getVirtualizedRenderRange(
+        currentActive,
+        adjustedPrerenderItems,
+        dataLength,
+        firstRenderedIndex
       );
-
-      scheduleOnRN(() => {
-        setRenderRange((prev) => {
-          // Only update if range actually changed
-          if (prev.start !== newStart || prev.end !== newEnd) {
-            return { start: newStart, end: newEnd };
-          }
-          return prev;
-        });
-      });
-    },
-    [virtualizeCards, adjustedPrerenderItems, data.length, SWIPE_BACK_BUFFER]
+      scheduleOnRN(updateRenderRange, start, end);
+    }
   );
 
-  const Card = SwiperCard as unknown as React.ComponentType<
-    React.PropsWithChildren<SwiperCardOptions<T>> & {
-      ref?: React.Ref<SwiperCardInternalRefType>;
-    }
-  >;
-
-  // Determine which cards to render based on virtualizeCards setting
+  const startIndex = virtualizeCards ? renderRange.start : firstRenderedIndex;
   const cardsToRender = virtualizeCards
     ? data.slice(renderRange.start, renderRange.end)
     : data.slice(firstRenderedIndex);
 
-  // Calculate the starting index for mapping
-  const startIndex = virtualizeCards ? renderRange.start : firstRenderedIndex;
-
   return cardsToRender
     .map((item, index) => {
-      // Calculate the actual index in the original data array
+      // Index in the original data array (never add initialIndex again)
       const actualIndex = index + startIndex;
       return (
-        <Card
+        <SwiperCard
           key={keyExtractor ? keyExtractor(item, actualIndex) : actualIndex}
+          ref={refs[actualIndex]}
+          item={item}
+          index={actualIndex}
+          activeIndex={activeIndex}
+          prerenderItems={adjustedPrerenderItems}
           cardStyle={cardStyle}
           flippedCardStyle={flippedCardStyle}
           regularCardStyle={regularCardStyle}
-          index={actualIndex}
-          prerenderItems={adjustedPrerenderItems}
           disableRightSwipe={disableRightSwipe}
           disableLeftSwipe={disableLeftSwipe}
           disableTopSwipe={disableTopSwipe}
@@ -265,54 +258,36 @@ const Swiper = <T,>(
           outputOverlayLabelBottomOpacityRange={
             outputOverlayLabelBottomOpacityRange
           }
-          activeIndex={activeIndex}
           OverlayLabelRight={OverlayLabelRight}
           OverlayLabelLeft={OverlayLabelLeft}
           OverlayLabelTop={OverlayLabelTop}
           OverlayLabelBottom={OverlayLabelBottom}
-          ref={refs[actualIndex]}
-          onSwipeRight={(cardIndex: number) => {
-            onSwipeRight?.(cardIndex);
-          }}
-          onSwipeLeft={(cardIndex: number) => {
-            onSwipeLeft?.(cardIndex);
-          }}
-          onSwipeTop={(cardIndex: number) => {
-            onSwipeTop?.(cardIndex);
-          }}
-          onSwipeBottom={(cardIndex: number) => {
-            onSwipeBottom?.(cardIndex);
-          }}
-          FlippedContent={FlippedContent}
+          onSwipeRight={onSwipeRight}
+          onSwipeLeft={onSwipeLeft}
+          onSwipeTop={onSwipeTop}
+          onSwipeBottom={onSwipeBottom}
           onSwipeStart={onSwipeStart}
           onSwipeActive={onSwipeActive}
           onSwipeEnd={onSwipeEnd}
+          onPress={onPress}
+          FlippedContent={FlippedContent}
           swipeBackXSpringConfig={swipeBackXSpringConfig}
           swipeBackYSpringConfig={swipeBackYSpringConfig}
           swipeRightSpringConfig={swipeRightSpringConfig}
           swipeLeftSpringConfig={swipeLeftSpringConfig}
           swipeTopSpringConfig={swipeTopSpringConfig}
           swipeBottomSpringConfig={swipeBottomSpringConfig}
-          onPress={onPress}
           swipeVelocityThreshold={swipeVelocityThreshold}
-          item={item}
           direction={direction}
           flipDuration={flipDuration}
           overlayLabelContainerStyle={overlayLabelContainerStyle}
           restoredSwipeDirection={restoredSwipeDirections.get(actualIndex)}
         >
           {renderCard(item, actualIndex)}
-        </Card>
+        </SwiperCard>
       );
     })
-    .reverse(); // to render cards in same hierarchy as their z-index
-};
-
-function fixedForwardRef<T, P = {}>(
-  render: (props: P, ref: React.Ref<T>) => React.ReactNode
-): (props: P & React.RefAttributes<T>) => React.ReactNode {
-  //@ts-ignore
-  return React.forwardRef(render) as any;
+    .reverse(); // render in the same hierarchy as the z-index
 }
 
-export default fixedForwardRef(Swiper);
+export default Swiper;

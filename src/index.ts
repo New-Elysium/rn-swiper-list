@@ -5,5 +5,7 @@ export type {
   SwiperRestoredSwipe,
   SwiperCardRefType,
   SwiperOptions,
+  SwiperProps,
   SwiperCardOptions,
+  SwiperSpringConfig,
 } from './types';
