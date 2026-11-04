@@ -44,6 +44,13 @@ jobs:
       - name: Run unit tests
         run: bun run test --maxWorkers=2 --coverage
 
+      # The library ships compiled by the React Compiler; also test the source
+      # without it so a compiler-only fix can't hide a real bug.
+      - name: Run unit tests without the React Compiler
+        run: bun run test --maxWorkers=2
+        env:
+          RN_SWIPER_REACT_COMPILER: '0'
+
   build-library:
     runs-on: ubuntu-latest
 
