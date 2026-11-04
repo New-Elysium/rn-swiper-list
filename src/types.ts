@@ -1,7 +1,9 @@
+import type { ReactNode, Ref } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { type JSX } from 'react';
-import type { SharedValue } from 'react-native-reanimated';
-import type { SpringConfig } from 'react-native-reanimated/lib/typescript/animation/spring';
+import type { SharedValue, WithSpringConfig } from 'react-native-reanimated';
+
+/** Spring configuration accepted by the swipe animation props. */
+export type SwiperSpringConfig = WithSpringConfig;
 
 /**
  * Represents a cardinal swipe direction recognized by {@linkcode Swiper}.
@@ -71,9 +73,9 @@ export type SwiperOptions<T> = {
   /** Card data. Each item is passed to {@linkcode SwiperOptions.renderCard}. */
   data: T[];
   /** Renders the front of a card for the given item and original data index. */
-  renderCard: (item: T, index: number) => JSX.Element;
+  renderCard: (item: T, index: number) => ReactNode;
   /** Renders the back of a card (shown after {@linkcode SwiperCardRefType.flipCard}). */
-  FlippedContent?: (item: T, index: number) => JSX.Element;
+  FlippedContent?: (item: T, index: number) => ReactNode;
   /**
    * Number of cards to prerender ahead of the active card.
    * @default `Math.max(data.length - 1, 1)`
@@ -173,26 +175,26 @@ export type SwiperOptions<T> = {
   /** Bottom overlay opacity output range. */
   outputOverlayLabelBottomOpacityRange?: number[];
   /** Component rendered as the right-swipe overlay label. */
-  OverlayLabelRight?: () => JSX.Element;
+  OverlayLabelRight?: () => ReactNode;
   /** Component rendered as the left-swipe overlay label. */
-  OverlayLabelLeft?: () => JSX.Element;
+  OverlayLabelLeft?: () => ReactNode;
   /** Component rendered as the upward-swipe overlay label. */
-  OverlayLabelTop?: () => JSX.Element;
+  OverlayLabelTop?: () => ReactNode;
   /** Component rendered as the downward-swipe overlay label. */
-  OverlayLabelBottom?: () => JSX.Element;
+  OverlayLabelBottom?: () => ReactNode;
   //* Swipe Animation Spring Configs (Animation Speed)
   /** Spring config for the horizontal swipe-back animation. */
-  swipeBackXSpringConfig?: SpringConfig;
+  swipeBackXSpringConfig?: SwiperSpringConfig;
   /** Spring config for the vertical swipe-back animation. */
-  swipeBackYSpringConfig?: SpringConfig;
+  swipeBackYSpringConfig?: SwiperSpringConfig;
   /** Spring config for programmatic / gesture right swipe. */
-  swipeRightSpringConfig?: SpringConfig;
+  swipeRightSpringConfig?: SwiperSpringConfig;
   /** Spring config for programmatic / gesture left swipe. */
-  swipeLeftSpringConfig?: SpringConfig;
+  swipeLeftSpringConfig?: SwiperSpringConfig;
   /** Spring config for programmatic / gesture upward swipe. */
-  swipeTopSpringConfig?: SpringConfig;
+  swipeTopSpringConfig?: SwiperSpringConfig;
   /** Spring config for programmatic / gesture downward swipe. */
-  swipeBottomSpringConfig?: SpringConfig;
+  swipeBottomSpringConfig?: SwiperSpringConfig;
   /**
    * Minimum velocity (px/s) required to trigger a swipe regardless of position.
    * When `undefined`, velocity-based swiping is disabled.
@@ -205,6 +207,14 @@ export type SwiperOptions<T> = {
   flipDuration?: number;
   /** Style for the overlay label container. */
   overlayLabelContainerStyle?: StyleProp<ViewStyle>;
+};
+
+/**
+ * Props accepted by the {@linkcode Swiper} component, including the React 19
+ * `ref` prop used to access the imperative {@linkcode SwiperCardRefType} API.
+ */
+export type SwiperProps<T> = SwiperOptions<T> & {
+  ref?: Ref<SwiperCardRefType>;
 };
 
 /**
@@ -252,17 +262,17 @@ export type SwiperCardOptions<T> = {
   outputOverlayLabelTopOpacityRange?: number[];
   inputOverlayLabelBottomOpacityRange?: number[];
   outputOverlayLabelBottomOpacityRange?: number[];
-  OverlayLabelRight?: () => JSX.Element;
-  OverlayLabelLeft?: () => JSX.Element;
-  OverlayLabelTop?: () => JSX.Element;
-  OverlayLabelBottom?: () => JSX.Element;
-  FlippedContent?: (item: T, index: number) => JSX.Element;
-  swipeBackXSpringConfig?: SpringConfig;
-  swipeBackYSpringConfig?: SpringConfig;
-  swipeRightSpringConfig?: SpringConfig;
-  swipeLeftSpringConfig?: SpringConfig;
-  swipeTopSpringConfig?: SpringConfig;
-  swipeBottomSpringConfig?: SpringConfig;
+  OverlayLabelRight?: () => ReactNode;
+  OverlayLabelLeft?: () => ReactNode;
+  OverlayLabelTop?: () => ReactNode;
+  OverlayLabelBottom?: () => ReactNode;
+  FlippedContent?: (item: T, index: number) => ReactNode;
+  swipeBackXSpringConfig?: SwiperSpringConfig;
+  swipeBackYSpringConfig?: SwiperSpringConfig;
+  swipeRightSpringConfig?: SwiperSpringConfig;
+  swipeLeftSpringConfig?: SwiperSpringConfig;
+  swipeTopSpringConfig?: SwiperSpringConfig;
+  swipeBottomSpringConfig?: SwiperSpringConfig;
   swipeVelocityThreshold?: number;
   direction?: 'x' | 'y';
   flipDuration?: number;

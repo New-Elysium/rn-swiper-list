@@ -1,18 +1,30 @@
-import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { memo } from 'react';
+import {
+  Pressable,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
-type ActionButtonProps = React.ComponentProps<typeof TouchableOpacity> & {
+type ActionButtonProps = Omit<PressableProps, 'style' | 'onPress'> & {
   onTap?: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
-const ActionButton = React.memo(
-  ({ onTap, style, children, ...rest }: ActionButtonProps) => {
-    return (
-      <TouchableOpacity onPress={onTap} {...rest} style={style}>
-        {children}
-      </TouchableOpacity>
-    );
-  }
+const ActionButton = ({
+  onTap,
+  style,
+  children,
+  ...rest
+}: ActionButtonProps) => (
+  <Pressable
+    accessibilityRole="button"
+    onPress={onTap}
+    style={({ pressed }) => [style, pressed && { opacity: 0.6 }]}
+    {...rest}
+  >
+    {children}
+  </Pressable>
 );
 
-export default ActionButton;
+export default memo(ActionButton);
