@@ -39,6 +39,12 @@ export default defineConfig([
     },
   },
   {
+    files: ['e2e/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly' },
+    },
+  },
+  {
     files: ['jest.setup.js'],
     languageOptions: {
       globals: { jest: 'readonly' },

@@ -35,7 +35,7 @@ npm install react-native-reanimated react-native-gesture-handler react-native-wo
 | `react`                        | `>= 19.0` |
 | `react-native-gesture-handler` | `>= 3.0`  |
 | `react-native-reanimated`      | `>= 4.0`  |
-| `react-native-worklets`        | `>= 0.5`  |
+| `react-native-worklets`        | `>= 0.13` |
 
 Version 2.0 is tested with React Native 0.88.1, React 19.3.1, Gesture Handler 3.4.0, Reanimated 4.7.1, Worklets 0.13.1 and Expo SDK 58. Use `1.x` for Gesture Handler 2.
 

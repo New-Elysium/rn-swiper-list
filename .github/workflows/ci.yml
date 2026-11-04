@@ -57,6 +57,26 @@ jobs:
       - name: Build package
         run: bun run prepare
 
+  e2e-web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build example for Web
+        working-directory: example
+        run: bunx expo export --platform web
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run browser swipe tests
+        run: bun run test:e2e
+
   build-web:
     runs-on: ubuntu-latest
 

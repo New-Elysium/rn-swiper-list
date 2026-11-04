@@ -7,7 +7,7 @@ This file provides guidance for AI assistants working with the @psync/rn-swiper 
 @psync/rn-swiper is a high-performance, Tinder-like swipe card component for React Native. It uses:
 - **react-native-reanimated** (v4+) for smooth UI thread animations
 - **react-native-gesture-handler** (v3+, hook API) for gesture detection
-- **react-native-worklets** (v0.5+) for thread-safe callback execution between UI and JS threads
+- **react-native-worklets** (v0.13+) for thread-safe callback execution between UI and JS threads
 - **React 19+** (`ref` is a regular prop; no `forwardRef`)
 
 ## Architecture
@@ -110,6 +110,7 @@ bun --cwd example ios
 bun check            # Type checking (alias: bun run typecheck) — prefer over tsc
 bun run lint         # ESLint 10 (eslint .)
 bun run test         # Jest 30 (unit + component tests)
+bun run test:e2e     # Playwright drag/click test against example/dist (run `bunx expo export --platform web` in example/ first)
 
 # Build library
 bun run prepare      # Builds via react-native-builder-bob (alias: bun x bob build)
@@ -123,6 +124,8 @@ bun run release      # Uses release-it for versioning
 Tests are in `src/__tests__/`:
 - `utils.test.ts` — pure logic imported from `src/utils.ts` (index clamping, prerender count, restored swipes, virtualized render range, `resolveSwipeDirection`). Test the real functions; never re-implement logic inline in tests.
 - `Swiper.test.tsx` — renders `<Swiper>` with React Native Testing Library 14 (`await render(...)`, async `act`) and drives gestures with `createGestureController(getByGestureTestId('swiper-card-pan-<index>'))` from `react-native-gesture-handler/jest-utils`. Use fake timers and `jest.advanceTimersByTimeAsync(5000)` so springs finish and `onSwipe*` callbacks fire.
+
+- `e2e/swipe.e2e.mjs` — headless Chromium drives the example's web export with real mouse drags and button clicks and asserts on the callbacks the example logs. Runs in CI (`e2e-web` job). Set `E2E_SCREENSHOTS=<dir>` for per-step screenshots and `E2E_CHROMIUM=<path>` to use a specific browser binary.
 
 Jest setup: `@react-native/jest-preset`, `react-native-reanimated/jest/resolver` (worklets run on the web implementation), RNGH `jestSetup.js`, and `jest.setup.js` (Reanimated `setUpTests()` + a stub for `getUIRuntimeHolder`, which RNGH 3 calls but the worklets web implementation does not support). `babel.config.js` enables `react-native-worklets/plugin` in the `test` env only.
 

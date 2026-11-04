@@ -25,6 +25,7 @@
     "example": "bun --cwd example",
     "dev": "bun --cwd example start",
     "test": "jest",
+    "test:e2e": "node e2e/swipe.e2e.mjs",
     "typecheck": "bun check",
     "lint": "eslint .",
     "clean": "del-cli lib",
@@ -77,6 +78,7 @@
     "eslint-plugin-prettier": "^5.5.7",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jest": "^30.5.2",
+    "playwright": "^1.64.1",
     "prettier": "^3.9.10",
     "react": "^19.3.1",
     "react-native": "^0.88.1",
@@ -93,7 +95,7 @@
     "react-native": "*",
     "react-native-gesture-handler": ">=3.0.0",
     "react-native-reanimated": ">=4.0.0",
-    "react-native-worklets": ">=0.5.0"
+    "react-native-worklets": ">=0.13.0"
   },
   "workspaces": [
     "example"

@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Requires `react-native-gesture-handler` >= 3.0. Card gestures use the Gesture Handler 3 hook API (`usePanGesture`, `useTapGesture`, `useCompetingGestures`).
 - Requires `react` >= 19.0. `Swiper` takes `ref` as a regular prop; `forwardRef` is no longer used.
-- Requires `react-native-reanimated` >= 4.0 and `react-native-worklets` >= 0.5. Peer dependency ranges are now enforced instead of `*`.
+- Requires `react-native-reanimated` >= 4.0 and `react-native-worklets` >= 0.13. Peer dependency ranges are now enforced instead of `*`.
 - Spring props are typed as `SwiperSpringConfig` (Reanimated's public `WithSpringConfig`) instead of a type deep-imported from Reanimated internals.
 - Default translate, rotate and overlay ranges follow the window size (`useWindowDimensions`) instead of the screen size captured at import time.
 
