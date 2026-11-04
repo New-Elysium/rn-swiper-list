@@ -3,6 +3,7 @@ import React, {
   memo,
   useCallback,
   useImperativeHandle,
+  useMemo,
   type PropsWithChildren,
 } from 'react';
 import { useWindowDimensions, StyleSheet } from 'react-native';
@@ -25,6 +26,8 @@ import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import OverlayLabel from './OverlayLabel';
 import type { SwiperCardInternalRefType } from '../internalTypes';
+
+const EMPTY_RANGE: number[] = [];
 
 const getRestoredTranslateX = (
   direction: SwiperSwipeDirection | undefined,
@@ -314,8 +317,8 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
     resetAfterLoop,
   ]);
 
-  const inputRangeX = translateXRange ?? [];
-  const inputRangeY = translateYRange ?? [];
+  const inputRangeX = translateXRange ?? EMPTY_RANGE;
+  const inputRangeY = translateYRange ?? EMPTY_RANGE;
   const rotateX = useDerivedValue(() => {
     return interpolate(
       translateX.value,
@@ -323,157 +326,188 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
       rotateOutputRange ?? [],
       'clamp'
     );
-  }, [inputRangeX]);
-
-  const tap = Gesture.Tap().onEnd((_event, success) => {
-    if (success && onPress) {
-      scheduleOnRN(onPress);
-    }
   });
 
-  const pan = Gesture.Pan()
-    .onBegin(() => {
-      nextActiveIndex.value = Math.floor(activeIndex.value);
-      if (onSwipeStart) scheduleOnRN(onSwipeStart);
-    })
-    .onUpdate((event) => {
-      // Use activeIndex.value directly in worklet context
-      const currentActive = Math.floor(activeIndex.value);
-      if (currentActive !== index) return;
-      if (onSwipeActive) scheduleOnRN(onSwipeActive);
+  const tap = useMemo(
+    () =>
+      Gesture.Tap().onEnd((_event, success) => {
+        if (success && onPress) {
+          scheduleOnRN(onPress);
+        }
+      }),
+    [onPress]
+  );
 
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .onBegin(() => {
+          nextActiveIndex.value = Math.floor(activeIndex.value);
+          if (onSwipeStart) scheduleOnRN(onSwipeStart);
+        })
+        .onUpdate((event) => {
+          // Use activeIndex.value directly in worklet context
+          const currentActive = Math.floor(activeIndex.value);
+          if (currentActive !== index) return;
+          if (onSwipeActive) scheduleOnRN(onSwipeActive);
 
-      if (height / 3 < Math.abs(event.translationY)) {
-        nextActiveIndex.value = interpolate(
-          translateY.value,
-          inputRangeY,
-          [currentActive + 1, currentActive, currentActive + 1],
-          'clamp'
-        );
-        return;
-      }
+          translateX.value = event.translationX;
+          translateY.value = event.translationY;
 
-      nextActiveIndex.value = interpolate(
-        translateX.value,
-        inputRangeX,
-        [currentActive + 1, currentActive, currentActive + 1],
-        'clamp'
-      );
-    })
-    .onFinalize((event) => {
-      const currentActive = Math.floor(activeIndex.value);
-      if (currentActive !== index) return;
-      if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
-      if (nextActiveIndex.value === activeIndex.value + 1) {
-        const sign = Math.sign(event.translationX);
-        const signY = Math.sign(event.translationY);
-        const signPositionY = Number.isInteger(
-          interpolate(
-            translateY.value,
-            inputRangeY,
+          if (height / 3 < Math.abs(event.translationY)) {
+            nextActiveIndex.value = interpolate(
+              translateY.value,
+              inputRangeY,
+              [currentActive + 1, currentActive, currentActive + 1],
+              'clamp'
+            );
+            return;
+          }
+
+          nextActiveIndex.value = interpolate(
+            translateX.value,
+            inputRangeX,
             [currentActive + 1, currentActive, currentActive + 1],
             'clamp'
-          )
-        );
-        if (signPositionY) {
-          if (signY === -1 && !disableTopSwipe) {
-            scheduleOnRN(swipeTop);
-            return;
-          }
-          if (signY === 1 && !disableBottomSwipe) {
-            scheduleOnRN(swipeBottom);
-            return;
-          }
-        }
+          );
+        })
+        .onFinalize((event) => {
+          const currentActive = Math.floor(activeIndex.value);
+          if (currentActive !== index) return;
+          if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
+          if (nextActiveIndex.value === activeIndex.value + 1) {
+            const sign = Math.sign(event.translationX);
+            const signY = Math.sign(event.translationY);
+            const signPositionY = Number.isInteger(
+              interpolate(
+                translateY.value,
+                inputRangeY,
+                [currentActive + 1, currentActive, currentActive + 1],
+                'clamp'
+              )
+            );
+            if (signPositionY) {
+              if (signY === -1 && !disableTopSwipe) {
+                scheduleOnRN(swipeTop);
+                return;
+              }
+              if (signY === 1 && !disableBottomSwipe) {
+                scheduleOnRN(swipeBottom);
+                return;
+              }
+            }
 
-        if (!signPositionY) {
-          if (sign === 1 && !disableRightSwipe) {
-            scheduleOnRN(swipeRight);
-            return;
+            if (!signPositionY) {
+              if (sign === 1 && !disableRightSwipe) {
+                scheduleOnRN(swipeRight);
+                return;
+              }
+              if (sign === -1 && !disableLeftSwipe) {
+                scheduleOnRN(swipeLeft);
+                return;
+              }
+            }
           }
-          if (sign === -1 && !disableLeftSwipe) {
-            scheduleOnRN(swipeLeft);
-            return;
-          }
-        }
-      }
-    })
-    .onFinalize((event) => {
-      const currentActive = Math.floor(activeIndex.value);
-      if (currentActive !== index) return;
-      if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
+        })
+        .onFinalize((event) => {
+          const currentActive = Math.floor(activeIndex.value);
+          if (currentActive !== index) return;
+          if (onSwipeEnd) scheduleOnRN(onSwipeEnd);
 
-      if (swipeVelocityThreshold !== undefined) {
-        if (Math.abs(event.velocityX) > swipeVelocityThreshold) {
-          const sign = Math.sign(event.velocityX);
-          if (sign === -1 && !disableLeftSwipe) {
-            scheduleOnRN(swipeLeft);
-            return;
-          }
-          if (sign === 1 && !disableRightSwipe) {
-            scheduleOnRN(swipeRight);
-            return;
-          }
-        }
+          if (swipeVelocityThreshold !== undefined) {
+            if (Math.abs(event.velocityX) > swipeVelocityThreshold) {
+              const sign = Math.sign(event.velocityX);
+              if (sign === -1 && !disableLeftSwipe) {
+                scheduleOnRN(swipeLeft);
+                return;
+              }
+              if (sign === 1 && !disableRightSwipe) {
+                scheduleOnRN(swipeRight);
+                return;
+              }
+            }
 
-        if (Math.abs(event.velocityY) > swipeVelocityThreshold) {
-          const sign = Math.sign(event.velocityY);
-          if (sign === -1 && !disableTopSwipe) {
-            scheduleOnRN(swipeTop);
-            return;
+            if (Math.abs(event.velocityY) > swipeVelocityThreshold) {
+              const sign = Math.sign(event.velocityY);
+              if (sign === -1 && !disableTopSwipe) {
+                scheduleOnRN(swipeTop);
+                return;
+              }
+              if (sign === 1 && !disableBottomSwipe) {
+                scheduleOnRN(swipeBottom);
+                return;
+              }
+            }
           }
-          if (sign === 1 && !disableBottomSwipe) {
-            scheduleOnRN(swipeBottom);
-            return;
-          }
-        }
-      }
 
-      if (nextActiveIndex.value === activeIndex.value + 1) {
-        const sign = Math.sign(event.translationX);
-        const signY = Math.sign(event.translationY);
-        const signPositionY = Number.isInteger(
-          interpolate(
-            translateY.value,
-            inputRangeY,
-            [currentActive + 1, currentActive, currentActive + 1],
-            'clamp'
-          )
-        );
+          if (nextActiveIndex.value === activeIndex.value + 1) {
+            const sign = Math.sign(event.translationX);
+            const signY = Math.sign(event.translationY);
+            const signPositionY = Number.isInteger(
+              interpolate(
+                translateY.value,
+                inputRangeY,
+                [currentActive + 1, currentActive, currentActive + 1],
+                'clamp'
+              )
+            );
 
-        if (signPositionY) {
-          if (signY === -1 && !disableTopSwipe) {
-            scheduleOnRN(swipeTop);
-            return;
-          }
-          if (signY === 1 && !disableBottomSwipe) {
-            scheduleOnRN(swipeBottom);
-            return;
-          }
-        }
+            if (signPositionY) {
+              if (signY === -1 && !disableTopSwipe) {
+                scheduleOnRN(swipeTop);
+                return;
+              }
+              if (signY === 1 && !disableBottomSwipe) {
+                scheduleOnRN(swipeBottom);
+                return;
+              }
+            }
 
-        if (!signPositionY) {
-          if (sign === 1 && !disableRightSwipe) {
-            scheduleOnRN(swipeRight);
-            return;
+            if (!signPositionY) {
+              if (sign === 1 && !disableRightSwipe) {
+                scheduleOnRN(swipeRight);
+                return;
+              }
+              if (sign === -1 && !disableLeftSwipe) {
+                scheduleOnRN(swipeLeft);
+                return;
+              }
+            }
           }
-          if (sign === -1 && !disableLeftSwipe) {
-            scheduleOnRN(swipeLeft);
-            return;
-          }
-        }
-      }
-      translateX.value = withSpring(0, {
-        ...swipeBackXSpringConfig,
-        reduceMotion: ReduceMotion.Never,
-      });
-      translateY.value = withSpring(0, {
-        ...swipeBackYSpringConfig,
-        reduceMotion: ReduceMotion.Never,
-      });
-    });
+          translateX.value = withSpring(0, {
+            ...swipeBackXSpringConfig,
+            reduceMotion: ReduceMotion.Never,
+          });
+          translateY.value = withSpring(0, {
+            ...swipeBackYSpringConfig,
+            reduceMotion: ReduceMotion.Never,
+          });
+        }),
+    [
+      activeIndex,
+      disableBottomSwipe,
+      disableLeftSwipe,
+      disableRightSwipe,
+      disableTopSwipe,
+      height,
+      index,
+      inputRangeX,
+      inputRangeY,
+      nextActiveIndex,
+      onSwipeActive,
+      onSwipeEnd,
+      onSwipeStart,
+      swipeBackXSpringConfig,
+      swipeBackYSpringConfig,
+      swipeBottom,
+      swipeLeft,
+      swipeRight,
+      swipeTop,
+      swipeVelocityThreshold,
+      translateX,
+      translateY,
+    ]
+  );
 
   const rCardStyle = useAnimatedStyle(() => {
     // Handle visibility and rendering based on prerenderItems using animated values
@@ -541,7 +575,7 @@ const SwipeableCard = forwardRef(function SwipeableCard<T>(
     };
   });
 
-  const composed = Gesture.Race(tap, pan);
+  const composed = useMemo(() => Gesture.Race(tap, pan), [tap, pan]);
 
   return (
     <GestureDetector gesture={composed}>
